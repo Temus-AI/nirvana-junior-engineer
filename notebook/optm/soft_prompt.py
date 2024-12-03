@@ -15,22 +15,28 @@ def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
     """ 
     Load Huggingface model and tokenizer
     Load in model with same precision level (MPS and CUDA)
+    Include KV cache & flash attention for better performacnce on CUDA (9 times faster training & inference)
     """    
     if torch.backends.mps.is_available():
         torch_dtype = torch.float32
         device_map = "mps"
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map=device_map
+        )
     else:
-        # For CUDA, use float32 instead of float16
-        torch_dtype = torch.float32  # Changed from float16
+        torch_dtype = torch.bfloat16
+        attn_implementation = "flash_attention_2"
         device_map = "cuda"
-        
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch_dtype,
-        device_map=device_map
-    )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map=device_map,
+            attn_implementation=attn_implementation,  # works (I think there are other options?)
+            use_cache=True # enable KV cache
+        )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
     return model, tokenizer
 
 
@@ -484,7 +490,8 @@ def test_model(model_with_soft_prompt, tokenizer, test_data, batch_size=24):
     
     return avg_score, err_msgs  # Return both score and error messages for analysis
 
-        
+
+
 def train_soft_prompt(model, train_dataloader, num_epochs=5, learning_rate=1e-4, accumulation_steps=4, print_info: bool = True):
     """ 
     Train soft prompt without mixed precision training
@@ -592,3 +599,304 @@ def train_soft_prompt(model, train_dataloader, num_epochs=5, learning_rate=1e-4,
         scheduler.step(avg_loss)
     
     return model
+
+        
+####################
+# Prompt Tuning HF #
+####################
+
+from peft import PromptEmbedding, PromptTuningConfig, get_peft_model
+from transformers import get_linear_schedule_with_warmup
+
+def setup_prompt_tuning_config(config_dict: dict) -> PromptTuningConfig:
+    config = PromptTuningConfig(
+            peft_type="PROMPT_TUNING",
+            task_type="CAUSAL_LM",
+            num_virtual_tokens=config_dict["num_virtual_tokens"],
+            token_dim=config_dict["token_dim"],
+            num_transformer_submodules=1,
+            num_attention_heads=config_dict["num_attention_heads"],
+            num_layers=config_dict["num_layers"],
+            prompt_tuning_init="TEXT",
+        prompt_tuning_init_text=config_dict["prompt_tuning_init_text"],
+        tokenizer_name_or_path=config_dict["model_name"],
+    )
+    return config
+
+def setup_model_for_training(
+    base_model,
+    config: PromptTuningConfig,
+    learning_rate: float,
+    num_epochs: int,
+    train_dataloader,
+    device: str = "cuda",
+) -> tuple:
+    """Setup model with prompt tuning and optimization components"""
+    prompt_embedding = PromptEmbedding(config, base_model.get_input_embeddings())
+    model = get_peft_model(base_model, config).to(device)
+    
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=0,
+        num_training_steps=(len(train_dataloader) * num_epochs),
+    )
+    
+    return model, optimizer, lr_scheduler
+
+def train_epoch(
+    model,
+    train_dataloader,
+    test_dataloader,
+    optimizer,
+    lr_scheduler,
+    tokenizer,
+    device: str = "cuda",
+    accumulation_steps: int = 4,
+) -> tuple[float, float]:
+    """Run one training epoch and evaluation"""
+    model.train()
+    total_loss = 0
+    optimizer.zero_grad()  # Zero gradients at start
+    
+    # Training loop
+    for batch_idx, batch in enumerate(tqdm(train_dataloader)):
+        batch = {k: v.to(device) for k, v in batch.items()}
+        
+        outputs = model(**batch)
+        
+        loss = outputs.loss / accumulation_steps  # Scale loss for accumulation
+        
+        # Backward pass
+        loss.backward()
+        total_loss += loss.item() * accumulation_steps  # Scale back for logging
+        
+        # Update weights after accumulation_steps
+        if (batch_idx + 1) % accumulation_steps == 0:
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+    
+    # Handle any remaining gradients
+    if (batch_idx + 1) % accumulation_steps != 0:
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+
+    # Evaluation loop
+    model.eval()
+    eval_loss = 0
+    eval_preds = []
+    for batch in tqdm(test_dataloader):
+        batch = {k: v.to(device) for k, v in batch.items()}
+        with torch.no_grad():
+            outputs = model(**batch)
+        loss = outputs.loss
+        eval_loss += loss.detach().float()
+        eval_preds.extend(
+            tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
+        )
+
+    return (
+        total_loss / len(train_dataloader),
+        eval_loss / len(test_dataloader)
+    )
+
+# test generation function 
+def generate_text(prompt: str, 
+                 model, 
+                 tokenizer,
+                 max_length: int = 2048,
+                 temperature: float = 0.9,
+                 num_return_sequences: int = 1) -> list[str]:
+    """
+    Generate text using a pre-trained language model.
+    
+    Args:
+        prompt (str): Input text to generate from
+        model_name (str): Name of the pre-trained model to use
+        max_length (int): Maximum length of generated sequence
+        temperature (float): Controls randomness in generation (higher = more random)
+        num_return_sequences (int): Number of sequences to generate
+        
+    Returns:
+        list[str]: List of generated text sequences
+    """
+    # Ensure model is in evaluation mode
+    model.eval()
+    
+    # Encode the prompt
+    inputs = tokenizer.encode(prompt, 
+                            return_tensors="pt",
+                            add_special_tokens=True).to("cuda")
+    
+    # Generate text
+    with torch.no_grad():
+        outputs = model.generate(
+            input_ids=inputs,
+            max_length=max_length,
+            temperature=temperature,
+            num_return_sequences=num_return_sequences,
+            pad_token_id=tokenizer.eos_token_id,
+            do_sample=True,
+            top_k=50,
+            top_p=0.95
+        )
+    
+    # Decode and return the generated sequences
+    generated_texts = [
+        tokenizer.decode(output, skip_special_tokens=True)
+        for output in outputs
+    ]
+    
+    return generated_texts
+
+
+def evaluate_model_outputs(test_data, model, tokenizer) -> list:
+    """Generate and evaluate model outputs on test data"""
+    generated_responses = []
+    for data in test_data:
+        prompt, _ = format_prompt_instruction_tuned(
+            data["prompt"], 
+            data["comment"], 
+            data["label"],
+            tokenizer, 
+            previous_messages=[]
+        )
+        generated_response = generate_text(prompt, model, tokenizer)
+        generated_responses.append(generated_response)
+    return generated_responses
+
+# Main execution pipeline
+def run_prompt_tuning_pipeline(
+    config_dict: dict,
+    num_epochs: int = 50,
+    learning_rate: float = 3e-2,
+    device: str = "cuda"
+) -> tuple[object, list]:
+    """Main pipeline for prompt tuning and evaluation"""
+
+    # Load model and data
+    print("Loading Model...")
+    model_name = config_dict["model_name"]
+    model, tokenizer = load_hf_model_precise(model_name)
+
+    print("Loading Dataset ...")
+    tf_dataset = ClsCommentDataset(load_tf_data, tokenizer, train=True)
+    testset = ClsCommentDataset(load_tf_data, tokenizer, train=False)
+    
+    train_dataloader = DataLoader(tf_dataset, batch_size=config_dict["batch_size"], shuffle=True)
+    test_dataloader = DataLoader(testset, batch_size=config_dict["batch_size"], shuffle=True)
+
+    # Setup training    
+    config = setup_prompt_tuning_config(config_dict)
+    
+    model, optimizer, lr_scheduler = setup_model_for_training(
+        model, config, learning_rate, num_epochs, train_dataloader, device
+    )
+
+    print("Start training loop ...")
+    # Training loop
+    for epoch in range(num_epochs):
+        train_loss, eval_loss = train_epoch(
+            model, train_dataloader, test_dataloader,
+            optimizer, lr_scheduler, tokenizer, device, accumulation_steps=config_dict["accumulation_steps"]
+        )
+        
+        train_ppl = torch.exp(train_loss)
+        eval_ppl = torch.exp(eval_loss)
+        print(f"{epoch=}: {train_ppl=} {train_loss=} {eval_ppl=} {eval_loss=}")
+    
+    # Evaluate final model
+    print("Evaluating model performance ...")
+    _, test_data = load_tf_data()
+    generated_responses = evaluate_model_outputs(test_data, model, tokenizer)
+    
+    # save generated response & config dictionary
+    config_id = config_dict["config_id"]+"_prompt_tuning"
+    with open(f"runs/generated_responses_{config_id}.json", "w") as f:
+        json.dump(generated_responses, f)
+    with open(f"runs/config_{config_id}.json", "w") as f:
+        json.dump(config_dict, f)
+    
+    return model, generated_responses
+
+
+
+def run_token_tuning_pipeline(
+    config_dict: dict, 
+    num_epochs: int = 50, 
+    learning_rate: float = 3e-2, 
+    device: str = "cuda"
+) -> tuple[object, list]:
+    """Main pipeline for token tuning and evaluation
+    
+    Args:
+        config_dict (dict): Configuration parameters
+        num_epochs (int): Number of training epochs
+        learning_rate (float): Learning rate for optimization
+        device (str): Device to run training on
+        
+    Returns:
+        tuple[object, list]: Trained model and generated responses
+    """
+    # Load model & tokenizer
+    model, tokenizer = load_hf_model_precise(config_dict.get("model_name", "Qwen/Qwen2.5-0.5B-Instruct"))
+    model = model.to(device)
+
+    # Load datasets
+    tf_dataset = ClsCommentDataset(load_tf_data, tokenizer, train=True)
+    testset = ClsCommentDataset(load_tf_data, tokenizer, train=False)
+
+    # Initialize dataloaders
+    train_dataloader = DataLoader(
+        tf_dataset, 
+        batch_size=config_dict.get("batch_size", 24), 
+        shuffle=True
+    )
+
+    # Initialize soft-prompt model
+    model_with_soft_prompt = SoftPromptLLM(
+        model, 
+        tokenizer, 
+        n_learnable_tokens=config_dict.get("n_learnable_tokens", 3),
+        initialize_from_vocab=config_dict.get("initialize_from_vocab", True)
+    ).to(device)
+
+    # Train model using the existing train_soft_prompt function
+    trained_model = train_soft_prompt(
+        model_with_soft_prompt,
+        train_dataloader,
+        num_epochs=num_epochs,
+        learning_rate=learning_rate,
+        accumulation_steps=config_dict.get("accumulation_steps", 4)
+    )
+
+    # Generate responses on test set
+    trained_model.eval()
+    generated_responses = []
+    _, test_data = load_tf_data()
+    
+    with torch.no_grad():
+        for data in tqdm(test_data["prompt"], desc="Generating responses"):
+            query_prompt, _ = format_prompt_instruction_tuned(
+                data, 
+                test_data["comment"][len(generated_responses)],  # get corresponding comment
+                test_data["label"][len(generated_responses)],    # get corresponding label
+                tokenizer, 
+                previous_messages=[]
+            )
+            generated_response = trained_model.generate(
+                query_prompt,
+                max_new_tokens=config_dict.get("max_new_tokens", 600)
+            )
+            generated_responses.append(generated_response)
+            
+    # save generated response & config dictionary
+    config_id = config_dict["config_id"]+"_token_tuning"
+    with open(f"runs/generated_responses_{config_id}.json", "w") as f:
+        json.dump(generated_responses, f)
+    with open(f"runs/config_{config_id}.json", "w") as f:
+        json.dump(config_dict, f)
+
+    return trained_model, generated_responses
