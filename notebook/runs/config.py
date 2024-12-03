@@ -5,7 +5,7 @@ qwen_05_config_dict = {
     "num_layers": 24,
     "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
     "prompt_tuning_init_text": "ksgk",
-    "config_id": "qwen0.5B"
+    "config_id": "qwen0.5B",
     "batch_size": 24,
     "accumulation_steps": 4
 }
