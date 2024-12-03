@@ -4,35 +4,44 @@ import logging
 from datetime import datetime
 import hydra
 from omegaconf import DictConfig
+import os
 
-# Set up logging
-log_filename = f"tuning_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+# Set up logging with explicit path
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+log_filename = os.path.join(log_dir, f"tuning_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 logging.basicConfig(
     filename=log_filename,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-@hydra.main(config_path="runs/conf", config_name="config")
-def main(cfg: DictConfig):
-    # Get the model config based on the model name
-    model_configs = {
-        "qwen0.5B": qwen_05_config_dict,
-        "qwen7B": qwen_7_config_dict,
-        "llama3.8B": llama_3_8b_config_dict
-    }
+@hydra.main(config_path="runs/conf", config_name="config", version_base=None)
+def main(cfg: DictConfig) -> None:
+
+    hydra.core.hydra_config.HydraConfig.get().set_config({
+        "hydra": {
+            "job": {"chdir": False}  # Keep working directory at project root
+        }
+    })
     
-    config_dict = model_configs[cfg.model]
+    # Form config dict with only the required fields
+    config_dict = {
+        "num_virtual_tokens": cfg.num_virtual_tokens,
+        "token_dim": cfg.token_dim,
+        "num_attention_heads": cfg.num_attention_heads,
+        "num_layers": cfg.num_layers,
+        "model_name": cfg.model_name,
+        "prompt_tuning_init_text": cfg.prompt_tuning_init_text,
+        "config_id": cfg.config_id,
+        "batch_size": cfg.batch_size,
+        "accumulation_steps": cfg.accumulation_steps
+    }
     
     if cfg.prompt_tuning:
         logging.info(f"Starting {config_dict['config_id']} prompt tuning...")
         try:
-            run_prompt_tuning_pipeline(
-                config_dict, 
-                num_epochs=cfg.num_epochs, 
-                learning_rate=cfg.lr, 
-                device=cfg.device
-            )
+            run_prompt_tuning_pipeline(config_dict)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} prompt tuning: {str(e)}"
             print(error_msg)
@@ -41,12 +50,7 @@ def main(cfg: DictConfig):
     if cfg.token_tuning:
         logging.info(f"Starting {config_dict['config_id']} token tuning...")
         try:
-            run_token_tuning_pipeline(
-                config_dict, 
-                num_epochs=cfg.num_epochs, 
-                learning_rate=cfg.lr, 
-                device=cfg.device
-            )
+            run_token_tuning_pipeline(config_dict)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} token tuning: {str(e)}"
             print(error_msg)

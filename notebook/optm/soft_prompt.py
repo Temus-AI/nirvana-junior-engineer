@@ -9,6 +9,9 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 from typing import Callable, Union, List
 from tqdm import tqdm as tqdm 
+import os
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.join(SCRIPT_DIR, "..", "..", "data", "processed_data.json")
 
 
 def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
@@ -39,7 +42,8 @@ def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
     return model, tokenizer
 
 
-def load_tf_data(data_path: str = "../data/processed_data.json", split_ratio: float = 0.8):
+
+def load_tf_data(data_path: str = BASE_PATH, split_ratio: float = 0.8):
     """ 
     Load processed data -- let's add some phony data in-place
     """
@@ -54,7 +58,6 @@ def load_tf_data(data_path: str = "../data/processed_data.json", split_ratio: fl
     return train_data, test_data 
 
 
-from typing import Union, Callable
 
 
 def tf_label_metric(target_labels: Union[str, list], pred_labels: Union[str, list],
