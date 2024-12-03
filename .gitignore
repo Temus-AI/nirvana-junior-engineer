@@ -1,2 +1,3 @@
-# Do not cache data directory
+# Data directory
 /data/
+/data/*
