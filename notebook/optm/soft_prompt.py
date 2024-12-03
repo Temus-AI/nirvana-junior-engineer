@@ -15,7 +15,6 @@ def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
     """ 
     Load Huggingface model and tokenizer
     Load in model with same precision level (MPS and CUDA)
-    Include KV cache & flash attention for better performacnce on CUDA (9 times faster training & inference)
     """    
     if torch.backends.mps.is_available():
         torch_dtype = torch.float32
@@ -652,55 +651,83 @@ def train_epoch(
     lr_scheduler,
     tokenizer,
     device: str = "cuda",
-    accumulation_steps: int = 4,
+    accumulation_steps: int = 1,
+    max_grad_norm: float = 1.0,
 ) -> tuple[float, float]:
-    """Run one training epoch and evaluation"""
+    """Run one training epoch and evaluation with simplified gradient handling"""
     model.train()
     total_loss = 0
-    optimizer.zero_grad()  # Zero gradients at start
+    optimizer.zero_grad()
+    
+    def handle_gradients(batch_idx: int) -> bool:
+        """Handle gradient updates and clipping. Returns False if we should skip this batch."""
+        try:
+            # First clip gradients
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
+            
+            # Check if gradients are too large even after clipping
+            if torch.isnan(grad_norm) or grad_norm > max_grad_norm * 10:
+                print(f"Gradient norm too large: {grad_norm}, skipping batch {batch_idx}")
+                optimizer.zero_grad()
+                return False
+                
+            # If everything is fine, step optimizer and scheduler
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+            return True
+            
+        except Exception as e:
+            print(f"Error in gradient handling: {e}")
+            optimizer.zero_grad()
+            return False
     
     # Training loop
     for batch_idx, batch in enumerate(tqdm(train_dataloader)):
         batch = {k: v.to(device) for k, v in batch.items()}
-        
         outputs = model(**batch)
+        loss = outputs.loss / accumulation_steps
         
-        loss = outputs.loss / accumulation_steps  # Scale loss for accumulation
-        
+        # Check for NaN loss before backward
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"NaN/Inf loss detected in batch {batch_idx}: {loss.item()}")
+            optimizer.zero_grad()
+            continue
+            
         # Backward pass
         loss.backward()
-        total_loss += loss.item() * accumulation_steps  # Scale back for logging
         
-        # Update weights after accumulation_steps
+        # Update weights after accumulation_steps or if loss is problematic
         if (batch_idx + 1) % accumulation_steps == 0:
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad()
+            if handle_gradients(batch_idx):
+                total_loss += loss.detach().item() * accumulation_steps
     
     # Handle any remaining gradients
     if (batch_idx + 1) % accumulation_steps != 0:
-        optimizer.step()
-        lr_scheduler.step()
-        optimizer.zero_grad()
-
+        if handle_gradients(batch_idx):
+            total_loss += loss.detach().item() * accumulation_steps
+    
+    avg_train_loss = total_loss / len(train_dataloader)
+    
     # Evaluation loop
     model.eval()
-    eval_loss = 0
+    total_eval_loss = 0
     eval_preds = []
+    
     for batch in tqdm(test_dataloader):
         batch = {k: v.to(device) for k, v in batch.items()}
         with torch.no_grad():
             outputs = model(**batch)
-        loss = outputs.loss
-        eval_loss += loss.detach().float()
-        eval_preds.extend(
-            tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
-        )
-
-    return (
-        total_loss / len(train_dataloader),
-        eval_loss / len(test_dataloader)
-    )
+            loss = outputs.loss
+            if not torch.isnan(loss) and not torch.isinf(loss):
+                total_eval_loss += loss.detach().item()
+            eval_preds.extend(
+                tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
+            )
+    
+    avg_eval_loss = total_eval_loss / len(test_dataloader)
+    
+    return avg_train_loss, avg_eval_loss
 
 # test generation function 
 def generate_text(prompt: str, 
@@ -766,6 +793,7 @@ def evaluate_model_outputs(test_data, model, tokenizer) -> list:
         generated_response = generate_text(prompt, model, tokenizer)
         generated_responses.append(generated_response)
     return generated_responses
+
 
 # Main execution pipeline
 def run_prompt_tuning_pipeline(
