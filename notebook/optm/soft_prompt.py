@@ -660,11 +660,18 @@ def train_epoch(
     """Run one training epoch and evaluation with simplified gradient handling"""
     model.train()
     total_loss = 0
+    valid_batches = 0  # Track number of valid batches
     optimizer.zero_grad()
     
-    def handle_gradients(batch_idx: int) -> bool:
+    def handle_gradients(batch_idx: int, loss: torch.Tensor) -> bool:
         """Handle gradient updates and clipping. Returns False if we should skip this batch."""
         try:
+            # Check if loss is valid before proceeding
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"Invalid loss value: {loss.item()} in batch {batch_idx}")
+                optimizer.zero_grad()
+                return False
+            
             # First clip gradients
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
             
@@ -686,51 +693,83 @@ def train_epoch(
             return False
     
     # Training loop
-    for batch_idx, batch in enumerate(tqdm(train_dataloader)):
-        batch = {k: v.to(device) for k, v in batch.items()}
-        outputs = model(**batch)
-        loss = outputs.loss / accumulation_steps
-        
-        # Check for NaN loss before backward
-        if torch.isnan(loss) or torch.isinf(loss):
-            print(f"NaN/Inf loss detected in batch {batch_idx}: {loss.item()}")
-            optimizer.zero_grad()
-            continue
+    progress_bar = tqdm(train_dataloader, desc="Training")
+    accumulated_loss = 0.0  # Initialize as float
+    
+    for batch_idx, batch in enumerate(progress_bar):
+        try:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
             
-        # Backward pass
-        loss.backward()
-        
-        # Update weights after accumulation_steps or if loss is problematic
-        if (batch_idx + 1) % accumulation_steps == 0:
-            if handle_gradients(batch_idx):
-                total_loss += loss.detach().item() * accumulation_steps
+            # Ensure loss is a tensor and divide by accumulation_steps
+            if not isinstance(accumulation_steps, (int, float)):
+                accumulation_steps = int(accumulation_steps)
+            loss = outputs.loss / accumulation_steps
+            
+            # Backward pass
+            loss.backward()
+            accumulated_loss += loss.item()  # Convert to float for accumulation
+            
+            # Update weights after accumulation_steps
+            if (batch_idx + 1) % accumulation_steps == 0:
+                if handle_gradients(batch_idx, loss * accumulation_steps):  # Pass tensor loss
+                    total_loss += accumulated_loss
+                    valid_batches += 1
+                    # Update progress bar
+                    progress_bar.set_postfix({
+                        'loss': f'{accumulated_loss:.4f}',
+                        'avg_loss': f'{total_loss/max(1, valid_batches):.4f}'
+                    })
+                accumulated_loss = 0.0  # Reset as float
+                
+        except Exception as e:
+            print(f"Error processing batch {batch_idx}: {e}")
+            print(f"accumulation_steps type: {type(accumulation_steps)}")
+            print(f"loss type: {type(outputs.loss)}")
+            continue
     
     # Handle any remaining gradients
-    if (batch_idx + 1) % accumulation_steps != 0:
-        if handle_gradients(batch_idx):
-            total_loss += loss.detach().item() * accumulation_steps
+    if accumulated_loss > 0:
+        if handle_gradients(batch_idx, torch.tensor(accumulated_loss, device=device)):
+            total_loss += accumulated_loss
+            valid_batches += 1
     
-    avg_train_loss = total_loss / len(train_dataloader)
+    # Calculate average loss only over valid batches
+    avg_train_loss = total_loss / max(1, valid_batches)
     
     # Evaluation loop
     model.eval()
-    total_eval_loss = 0
+    total_eval_loss = 0.0  # Initialize as float
+    valid_eval_batches = 0
     eval_preds = []
     
-    for batch in tqdm(test_dataloader):
-        batch = {k: v.to(device) for k, v in batch.items()}
-        with torch.no_grad():
-            outputs = model(**batch)
-            loss = outputs.loss
-            if not torch.isnan(loss) and not torch.isinf(loss):
-                total_eval_loss += loss.detach().item()
-            eval_preds.extend(
-                tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
-            )
+    for batch in tqdm(test_dataloader, desc="Evaluating"):
+        try:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            with torch.no_grad():
+                outputs = model(**batch)
+                loss = outputs.loss
+                if not torch.isnan(loss) and not torch.isinf(loss):
+                    total_eval_loss += loss.item()  # Convert to float
+                    valid_eval_batches += 1
+                eval_preds.extend(
+                    tokenizer.batch_decode(torch.argmax(outputs.logits, -1).detach().cpu().numpy(), skip_special_tokens=True)
+                )
+        except Exception as e:
+            print(f"Error in evaluation: {e}")
+            continue
     
-    avg_eval_loss = total_eval_loss / len(test_dataloader)
+    avg_eval_loss = total_eval_loss / max(1, valid_eval_batches)
+    
+    print(f"\nEpoch Summary:")
+    print(f"Valid training batches: {valid_batches}/{len(train_dataloader)}")
+    print(f"Average training loss: {avg_train_loss:.4f}")
+    print(f"Valid evaluation batches: {valid_eval_batches}/{len(test_dataloader)}")
+    print(f"Average evaluation loss: {avg_eval_loss:.4f}")
     
     return avg_train_loss, avg_eval_loss
+
+
 
 # test generation function 
 def generate_text(prompt: str, 
@@ -833,10 +872,6 @@ def run_prompt_tuning_pipeline(
             model, train_dataloader, test_dataloader,
             optimizer, lr_scheduler, tokenizer, device, accumulation_steps=config_dict["accumulation_steps"]
         )
-        
-        train_ppl = torch.exp(train_loss)
-        eval_ppl = torch.exp(eval_loss)
-        print(f"{epoch=}: {train_ppl=} {train_loss=} {eval_ppl=} {eval_loss=}")
     
     # Evaluate final model
     print("Evaluating model performance ...")
