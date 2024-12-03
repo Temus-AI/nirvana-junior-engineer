@@ -6,7 +6,7 @@ qwen_05_config_dict = {
     "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
     "prompt_tuning_init_text": "ksgk",
     "config_id": "qwen0.5B",
-    "batch_size": 24,
+    "batch_size": 36,
     "accumulation_steps": 4
 }
 
@@ -18,7 +18,7 @@ qwen_7_config_dict = {
     "model_name": "Qwen/Qwen2.5-7B-Instruct",
     "prompt_tuning_init_text": "ksgk",
     "config_id": "qwen7B",
-    "batch_size": 6,
+    "batch_size": 9,
     "accumulation_steps": 24
 }
 
@@ -30,6 +30,6 @@ llama_3_8b_config_dict = {
     "model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "prompt_tuning_init_text": "ksgk",
     "config_id": "llama3.1_8B",
-    "batch_size": 6,
+    "batch_size": 9,
     "accumulation_steps": 24
 }
