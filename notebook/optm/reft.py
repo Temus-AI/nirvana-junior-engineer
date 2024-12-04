@@ -1,7 +1,8 @@
 from optm.soft_prompt import load_tf_data, _form_query, _form_response, load_hf_model_precise, RUN_DIR
 import pyreft, transformers
 from pyreft import ReftTrainerForCausalLM
-import torch
+import torch, json
+from .soft_prompt import RUN_DIR, load_hf_model_precise, evaluate_model_outputs, label_metric
 
 
 # Loading moded
@@ -25,7 +26,7 @@ def load_reft_model(model_name):
     reft_model.set_device("cuda")
     reft_model.print_trainable_parameters()
     
-    return reft_model, tokenizer
+    return reft_model, tokenizer, model
 
 
 def prepare_reft_training_examples(tokenizer, use_train: bool = True):
@@ -59,7 +60,7 @@ def prepare_reft_training_examples(tokenizer, use_train: bool = True):
     return training_examples, testing_examples
 
 
-def train_reft_model(reft_model, training_examples, tokenizer, train_config: dict):
+def train_reft_model(reft_model, training_examples, tokenizer, config_dict: dict):
     
     data_module = pyreft.make_last_position_supervised_data_module(
         tokenizer, reft_model, [e[0] for e in training_examples], # Used to be 'model' but replace with 'reft_model' 
@@ -67,12 +68,12 @@ def train_reft_model(reft_model, training_examples, tokenizer, train_config: dic
     
     # train
     training_args = transformers.TrainingArguments(
-        num_train_epochs=1.0,
-        output_dir="./tmp",
-        per_device_train_batch_size=5,
-        gradient_accumulation_steps=4,  # Added gradient accumulation
-        learning_rate=4e-3,
-        logging_steps=2,
+        num_train_epochs=config_dict.get("num_epochs", 50),
+        output_dir=f"{RUN_DIR}/reft",
+        per_device_train_batch_size=config_dict.get("per_device_train_batch_size", 10),
+        gradient_accumulation_steps=config_dict.get("accumulation_steps", 4),  # Added gradient accumulation
+        learning_rate=config_dict.get("lr", 4e-3),
+        logging_steps=config_dict.get("logging_steps", 2),
         report_to=[]
     )
 
@@ -130,5 +131,98 @@ def evaluate_reft_model_outputs(reft_model, tokenizer, cap_num: int = 30) -> tup
             response = get_reft_model_response(reft_model, tokenizer, query_prompt)
             generated_responses.append(response)
             true_responses.append(response_str)
+    
+    # Calculate fitness scores
+    from .soft_prompt import label_metric
+    fitness, err_msgs = label_metric(test_set["label"][:cap_num], generated_responses)
             
-    return generated_responses, true_responses
+    return fitness, generated_responses, err_msgs
+
+
+
+def run_reft_pipeline(
+    config_dict: dict, 
+    num_epochs: int = 50, 
+    learning_rate: float = 3e-2, 
+    device: str = "cuda",
+    cap_num: int = 30
+) -> tuple[object, list]:
+    """Main pipeline for REFT tuning and evaluation"""
+    
+    def print_section(title: str, char: str = "="):
+        width = 80
+        print(f"\n{char * width}")
+        print(f"{title:^{width}}")
+        print(f"{char * width}\n")
+        
+    def print_metric_comparison(title: str, metrics: dict):
+        print(f"\n{title}")
+        print("-" * 60)
+        for name, value in metrics.items():
+            print(f"│ {name:<25} │ {value:>25} │")
+        print("-" * 60)
+    
+    # Get consistent batch size with a default of 5 for REFT
+    batch_size = config_dict.get("batch_size", 5)  # Changed default from 8 to 5
+    
+    print_section("REFT TUNING PIPELINE", "═")
+    print("Configuration:")
+    print("├── Model:", config_dict.get("model_name", "Qwen/Qwen2.5-0.5B-Instruct"))
+    print("├── Config ID:", config_dict["config_id"])
+    print("├── Epochs:", num_epochs)
+    print("├── Learning Rate:", learning_rate)
+    print(f"├── Batch Size: {batch_size}")  # Using the consistent batch_size
+    print("├── Device:", device)
+    print("└── Evaluation Cap:", cap_num)    
+
+    # Load REFT model & tokenizer
+    print_section("MODEL INITIALIZATION", "─")
+    print("🔄 Loading REFT model and tokenizer...")
+    reft_model, tokenizer, model = load_reft_model(config_dict.get("model_name"))
+    print("✅ REFT model loaded successfully")
+    
+    # Prepare training examples
+    print_section("DATASET PREPARATION", "─")
+    print("🔄 Preparing training and testing examples...")
+    training_examples, testing_examples = prepare_reft_training_examples(tokenizer)
+    
+    # Evaluate Base model
+    print_section("BASE MODEL EVALUATION", "─")
+    print("🔄 Evaluating base model...")
+    from .soft_prompt import evaluate_model_outputs
+    orig_fitness, orig_responses, orig_err_msgs = evaluate_model_outputs(model, tokenizer, cap_num, config_dict={})
+    print("✅ Base model evaluation complete")
+    
+    print_metric_comparison("Dataset Statistics", {
+        "Training Samples": len(training_examples),
+        "Test Samples": len(testing_examples),
+        "Batch Size": batch_size,  # Using the consistent batch_size
+    })
+
+    # Train the REFT model
+    print_section("REFT MODEL TRAINING", "─")
+    print("🔄 Training REFT model...")
+    train_reft_model(reft_model, training_examples, tokenizer, config_dict)
+    print("✅ REFT training complete")
+    
+    # Evaluate the REFT model
+    print_section("REFT MODEL EVALUATION", "─")
+    print("🔄 Evaluating REFT model...")
+    fitness, generated_responses, err_msgs = evaluate_reft_model_outputs(reft_model, tokenizer, cap_num)
+    print("✅ REFT evaluation complete")
+    
+    training_info = {
+        "config_dict": config_dict,
+        "orig_fitness": orig_fitness,
+        "orig_responses": orig_responses,
+        "orig_err_msgs": orig_err_msgs,
+        "reft_fitness": fitness,
+        "reft_responses": generated_responses,
+        "reft_err_msgs": err_msgs
+    }
+    
+    config_id = config_dict["config_id"]+"_reft"
+    with open(f"{RUN_DIR}/training_info_{config_id}.json", "w") as f:
+        json.dump(training_info, f)
+
+    return reft_model, testing_examples

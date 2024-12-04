@@ -1,4 +1,5 @@
 from optm.soft_prompt import *
+from optm.reft import run_reft_pipeline
 from runs.config import *
 import logging
 from datetime import datetime
@@ -36,6 +37,15 @@ def main(cfg: DictConfig) -> None:
             run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.lr)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} token tuning: {str(e)}"
+            print(error_msg)
+            logging.error(error_msg)
+            
+    if cfg.reft: 
+        logging.info(f"Starting {config_dict['config_id']} reft tuning...")
+        try:
+            run_reft_pipeline(config_dict, cfg.num_epochs, cfg.lr)
+        except Exception as e:
+            error_msg = f"Error running {config_dict['config_id']} reft tuning: {str(e)}"
             print(error_msg)
             logging.error(error_msg)
 
