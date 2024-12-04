@@ -10,6 +10,7 @@ pip cache purge
 
 # Install pyreft
 pip install git+https://github.com/stanfordnlp/pyreft.git
+pip install nnsight
 
 # Install PyTorch with CUDA support
 pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
