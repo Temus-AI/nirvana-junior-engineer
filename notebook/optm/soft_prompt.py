@@ -12,7 +12,7 @@ from tqdm import tqdm as tqdm
 import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.join(SCRIPT_DIR, "..", "..", "data", "processed_data.json")
-RUN_DIR = os.path.join(SCRIPT_DIR, "..", "..", "runs")
+RUN_DIR = os.path.join(SCRIPT_DIR, "..", "runs")
 
 def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
     """ 
@@ -603,9 +603,10 @@ def train_soft_prompt(model, train_dataloader, num_epochs=5, learning_rate=1e-4,
     return model
 
         
-####################
-# Prompt Tuning HF #
-####################
+#########################################################################
+# Prompt Tuning HF                                                      #
+# Turns out to have same speed as token tuning, while being less stable #
+#########################################################################
 
 from peft import PromptEmbedding, PromptTuningConfig, get_peft_model
 from transformers import get_linear_schedule_with_warmup
@@ -634,7 +635,7 @@ def setup_model_for_training(
     device: str = "cuda",
 ) -> tuple:
     """Setup model with prompt tuning and optimization components"""
-    prompt_embedding = PromptEmbedding(config, base_model.get_input_embeddings())
+        
     model = get_peft_model(base_model, config).to(device)
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -645,6 +646,7 @@ def setup_model_for_training(
     )
     
     return model, optimizer, lr_scheduler
+
 
 def train_epoch(
     model,
@@ -658,6 +660,7 @@ def train_epoch(
     max_grad_norm: float = 1.0,
 ) -> tuple[float, float]:
     """Run one training epoch and evaluation with simplified gradient handling"""
+    
     model.train()
     total_loss = 0
     valid_batches = 0  # Track number of valid batches
