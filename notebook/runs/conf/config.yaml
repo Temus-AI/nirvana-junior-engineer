@@ -16,5 +16,5 @@ num_layers: 32
 model_name: "Qwen/Qwen2.5-7B-Instruct"
 prompt_tuning_init_text: "ksgk"
 config_id: "qwen7B"
-batch_size: 9
+batch_size: 12
 accumulation_steps: 24
