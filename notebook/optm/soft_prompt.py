@@ -896,7 +896,8 @@ def run_token_tuning_pipeline(
     config_dict: dict, 
     num_epochs: int = 50, 
     learning_rate: float = 3e-2, 
-    device: str = "cuda"
+    device: str = "cuda",
+    cap_num: int = 30
 ) -> tuple[object, list]:
     """Main pipeline for token tuning and evaluation
     
@@ -947,7 +948,9 @@ def run_token_tuning_pipeline(
     _, test_data = load_tf_data()
     
     with torch.no_grad():
-        for data in tqdm(test_data["prompt"], desc="Generating responses"):
+        query_prompts = []
+        
+        for data in test_data["prompt"][:cap_num]:
             query_prompt, _ = format_prompt_instruction_tuned(
                 data, 
                 test_data["comment"][len(generated_responses)],  # get corresponding comment
@@ -955,11 +958,9 @@ def run_token_tuning_pipeline(
                 tokenizer, 
                 previous_messages=[]
             )
-            generated_response = trained_model.generate(
-                query_prompt,
-                max_new_tokens=config_dict.get("max_new_tokens", 600)
-            )
-            generated_responses.append(generated_response)
+            query_prompts.append(query_prompt)
+        
+        generated_responses = trained_model.generate(query_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600))
             
     # save generated response & config dictionary
     config_id = config_dict["config_id"]+"_token_tuning"
