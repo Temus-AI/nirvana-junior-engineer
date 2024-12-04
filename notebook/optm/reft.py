@@ -70,7 +70,7 @@ def train_reft_model(reft_model, training_examples, tokenizer, config_dict: dict
     training_args = transformers.TrainingArguments(
         num_train_epochs=config_dict.get("num_epochs", 50),
         output_dir=f"{RUN_DIR}/reft",
-        per_device_train_batch_size=config_dict.get("per_device_train_batch_size", 10),
+        per_device_train_batch_size=config_dict.get("per_device_train_batch_size", 6),
         gradient_accumulation_steps=config_dict.get("accumulation_steps", 4),  # Added gradient accumulation
         learning_rate=config_dict.get("lr", 4e-3),
         logging_steps=config_dict.get("logging_steps", 2),
