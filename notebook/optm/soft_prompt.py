@@ -911,13 +911,12 @@ def evaluate_model_outputs(trained_model: SoftPromptLLM, tokenizer, cap_num: int
         # batch prompts into group each of size 20 and conduct batch generations
         for i in range(0, len(query_prompts), 20):
             batch_prompts = query_prompts[i:i+20]
-            if "generate" in dir(trained_model):
+            if isinstance(trained_model, SoftPromptLLM):
                 # SoftPrompt LLM has generation method 
-                generated_responses.extend(trained_model.generate(batch_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600)))
+                generated_responses.extend(trained_model.generate(batch_prompts, max_new_tokens=config_dict.get("max_new_tokens", 2024)))
             else:
-                # HF model has no generation method, so we use our own generate_text function
-                generated_responses.extend(generate_text(batch_prompts, trained_model, tokenizer))
-                
+                responses = generate_text(batch_prompts, trained_model, tokenizer)
+                generated_responses.extend(responses)
     
     fitness = 1.0 # default value first
         
