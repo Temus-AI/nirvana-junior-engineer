@@ -441,6 +441,7 @@ def extract_json_from_text(text):
         
     raise ValueError(error_msg)
 
+
 def label_metric(target_label: str, generated_response: str) -> float: 
     """ 
     Evaluate the generated response against the target label
@@ -456,7 +457,8 @@ def label_metric(target_label: str, generated_response: str) -> float:
         generated_label = parsed_response["decision"]
         if generated_label.lower() != target_label.lower():
             return 0.0, f"Target label is '{target_label}', but generated label is '{generated_label}'"
-
+        else:
+            return 1.0, "Perfect!"
 
 def test_model(model_with_soft_prompt, tokenizer, test_data, batch_size=24):
     data_len = len(test_data["prompt"])
