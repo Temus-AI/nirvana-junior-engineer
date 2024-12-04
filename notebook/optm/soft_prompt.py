@@ -470,7 +470,7 @@ def label_metric(target_labels: list, generated_responses: list) -> tuple[float,
         score, err_msg = _label_metric(target_label, generated_response)
         scores.append(score)
         err_msgs.append(err_msg)
-    avg_score = sum(scores+0.01) / len(scores)
+    avg_score = sum(scores) / len(scores)
     
     return avg_score, err_msgs
         
@@ -936,9 +936,9 @@ def evaluate_model_outputs(trained_model, tokenizer, cap_num: int = 30, config_d
                 generated_responses.extend(responses)
                 
         # assinging fitness score 
-        fitness, err_msgs = label_metric(generated_responses, test_data["label"][:cap_num])
+        fitness, err_msgs = label_metric(test_data["label"][:cap_num], generated_responses)
             
-    return fitness, generated_responses
+    return fitness, generated_responses, err_msgs
 
 
 def run_token_tuning_pipeline(
@@ -948,24 +948,55 @@ def run_token_tuning_pipeline(
     device: str = "cuda",
     cap_num: int = 30
 ) -> tuple[object, list]:
-    """Main pipeline for token tuning and evaluation
+    """Main pipeline for token tuning and evaluation"""
     
-    Args:
-        config_dict (dict): Configuration parameters
-        num_epochs (int): Number of training epochs
-        learning_rate (float): Learning rate for optimization
-        device (str): Device to run training on
+    def print_section(title: str, char: str = "="):
+        width = 80
+        print(f"\n{char * width}")
+        print(f"{title:^{width}}")
+        print(f"{char * width}\n")
         
-    Returns:
-        tuple[object, list]: Trained model and generated responses
-    """
+    def print_metric_comparison(title: str, metrics: dict):
+        print(f"\n{title}")
+        print("-" * 60)
+        for name, value in metrics.items():
+            print(f"│ {name:<25} │ {value:>25} │")
+        print("-" * 60)
+    
+    print_section("TOKEN TUNING PIPELINE", "═")
+    print("Configuration:")
+    print("├── Model:", config_dict.get("model_name", "Qwen/Qwen2.5-0.5B-Instruct"))
+    print("├── Config ID:", config_dict["config_id"])
+    print("├── Epochs:", num_epochs)
+    print("├── Learning Rate:", learning_rate)
+    print("├── Batch Size:", config_dict.get("batch_size", 24))
+    print("├── Device:", device)
+    print("└── Evaluation Cap:", cap_num)
+
     # Load model & tokenizer
+    print_section("MODEL INITIALIZATION", "─")
+    print("🔄 Loading model and tokenizer...")
     model, tokenizer = load_hf_model_precise(config_dict.get("model_name", "Qwen/Qwen2.5-0.5B-Instruct"))
     model = model.to(device)
+    print("✅ Model loaded successfully")
+    
+    # Original Model Evaluation
+    print("\n📊 Evaluating original model baseline...")
+    orig_fitness, orig_responses, orig_err_msgs = evaluate_model_outputs(model, tokenizer, cap_num, config_dict={})
+    orig_error_rate = len([msg for msg in orig_err_msgs if msg])/len(orig_err_msgs)
+    print("✅ Baseline evaluation complete")
 
     # Load datasets
+    print_section("DATASET PREPARATION", "─")
     tf_dataset = ClsCommentDataset(load_tf_data, tokenizer, train=True)
     testset = ClsCommentDataset(load_tf_data, tokenizer, train=False)
+    
+    print_metric_comparison("Dataset Statistics", {
+        "Training Samples": len(tf_dataset),
+        "Test Samples": len(testset),
+        "Batch Size": config_dict.get("batch_size", 24),
+        "Total Batches": len(tf_dataset) // config_dict.get("batch_size", 24)
+    })
 
     # Initialize dataloaders
     train_dataloader = DataLoader(
@@ -975,12 +1006,22 @@ def run_token_tuning_pipeline(
     )
 
     # Initialize soft-prompt model
+    print_section("SOFT PROMPT INITIALIZATION", "─")
+    n_tokens = config_dict.get("n_learnable_tokens", 3)
+    print(f"🔄 Initializing {n_tokens} learnable tokens...")
     model_with_soft_prompt = SoftPromptLLM(
         model, 
         tokenizer, 
-        n_learnable_tokens=config_dict.get("n_learnable_tokens", 3),
+        n_learnable_tokens=n_tokens,
         initialize_from_vocab=config_dict.get("initialize_from_vocab", True)
     ).to(device)
+    print("✅ Soft prompts initialized successfully")
+    
+    # Initial Soft-prompt Evaluation
+    print("\n📊 Evaluating initial soft-prompt model...")
+    init_fitness, init_responses, init_err_msgs = evaluate_model_outputs(model_with_soft_prompt, tokenizer, cap_num, config_dict)
+    init_error_rate = len([msg for msg in init_err_msgs if msg])/len(init_err_msgs)
+    print("✅ Initial soft-prompt evaluation complete")
 
     # Train model using the existing train_soft_prompt function
     trained_model = train_soft_prompt(
@@ -992,13 +1033,23 @@ def run_token_tuning_pipeline(
     )
 
     # Generate responses on test set
-    _, generated_responses = evaluate_model_outputs(trained_model, tokenizer, cap_num, config_dict)
-    
-    # save generated response & config dictionary
-    config_id = config_dict["config_id"]+"_token_tuning"
-    with open(f"{RUN_DIR}/generated_responses_{config_id}.json", "w") as f:
-        json.dump(generated_responses, f)
-    with open(f"{RUN_DIR}/config_{config_id}.json", "w") as f:
-        json.dump(config_dict, f)
+    token_fitness, token_responses, token_err_msgs = evaluate_model_outputs(trained_model, tokenizer, cap_num, config_dict)
 
-    return trained_model, generated_responses
+    training_info = {
+        "config_dict": config_dict,
+        "orig_fitness": orig_fitness,
+        "orig_responses": orig_responses,
+        "orig_err_msgs": orig_err_msgs,
+        "init_fitness": init_fitness,
+        "init_responses": init_responses,
+        "init_err_msgs": init_err_msgs,
+        "token_fitness": token_fitness,
+        "token_responses": token_responses,
+        "token_err_msgs": token_err_msgs
+    }
+    
+    config_id = config_dict["config_id"]+"_token_tuning"
+    with open(f"{RUN_DIR}/training_info_{config_id}.json", "w") as f:
+        json.dump(training_info, f)
+
+    return trained_model, token_responses

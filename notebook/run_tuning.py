@@ -6,24 +6,17 @@ import hydra
 from omegaconf import DictConfig
 import os
 
-# Set up logging with explicit path
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)
-log_filename = os.path.join(log_dir, f"tuning_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+# Replace the file logging setup with console logging
 logging.basicConfig(
-    filename=log_filename,
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
 )
 
 @hydra.main(config_path="runs/conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
-
-    hydra.core.hydra_config.HydraConfig.get().set_config({
-        "hydra": {
-            "job": {"chdir": False}  # Keep working directory at project root
-        }
-    })
+    # Change working directory to project root
+    os.chdir(hydra.utils.get_original_cwd())
     
     # Form config dict with only the required fields
     config_dict = {k: v for k, v in cfg.items()}
@@ -31,7 +24,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.prompt_tuning:
         logging.info(f"Starting {config_dict['config_id']} prompt tuning...")
         try:
-            run_prompt_tuning_pipeline(config_dict, cfg.num_epochs, cfg.learning_rate)
+            run_prompt_tuning_pipeline(config_dict, cfg.num_epochs, cfg.lr)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} prompt tuning: {str(e)}"
             print(error_msg)
@@ -40,7 +33,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.token_tuning:
         logging.info(f"Starting {config_dict['config_id']} token tuning...")
         try:
-            run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.learning_rate)
+            run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.lr)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} token tuning: {str(e)}"
             print(error_msg)

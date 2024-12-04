@@ -8,6 +8,9 @@ apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
 pip uninstall -y torch torchvision torchaudio flash-attn
 pip cache purge
 
+# Install pyreft
+pip install git+https://github.com/stanfordnlp/pyreft.git
+
 # Install PyTorch with CUDA support
 pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
@@ -18,7 +21,6 @@ pip install --no-cache-dir packaging ninja wheel
 TORCH_CUDA_ARCH_LIST="8.0" pip install --no-cache-dir flash-attn --no-build-isolation
 
 # Install flash-attention and flashinfer
-TORCH_CUDA_ARCH_LIST="8.0" pip install --no-cache-dir flash-attn --no-build-isolation
 pip install flashinfer -i https://flashinfer.ai/whl/cu124/torch2.4
 
 # Core ML libraries
