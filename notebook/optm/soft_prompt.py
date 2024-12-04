@@ -889,7 +889,7 @@ def run_prompt_tuning_pipeline(
     return model, generated_responses
 
 
-def evaluate_model_outputs(trained_model: SoftPromptLLM, tokenizer, cap_num: int = 30, config_dict: dict = None) -> list:
+def evaluate_model_outputs(trained_model, tokenizer, cap_num: int = 30, config_dict: dict = None) -> list:
     
     generated_responses = []
 
