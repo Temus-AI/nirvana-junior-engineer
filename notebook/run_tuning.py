@@ -41,5 +41,3 @@ def main(cfg: DictConfig) -> None:
 
 if __name__ == "__main__":
     main()
-    # Example Command: 
-    # python run_tuning.py model=qwen7B lr=3e-4 num_epochs=5
