@@ -26,17 +26,7 @@ def main(cfg: DictConfig) -> None:
     })
     
     # Form config dict with only the required fields
-    config_dict = {
-        "num_virtual_tokens": cfg.num_virtual_tokens,
-        "token_dim": cfg.token_dim,
-        "num_attention_heads": cfg.num_attention_heads,
-        "num_layers": cfg.num_layers,
-        "model_name": cfg.model_name,
-        "prompt_tuning_init_text": cfg.prompt_tuning_init_text,
-        "config_id": cfg.config_id,
-        "batch_size": cfg.batch_size,
-        "accumulation_steps": cfg.accumulation_steps
-    }
+    config_dict = {k: v for k, v in cfg.items()}
     
     if cfg.prompt_tuning:
         logging.info(f"Starting {config_dict['config_id']} prompt tuning...")

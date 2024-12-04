@@ -580,15 +580,6 @@ def train_soft_prompt(model, train_dataloader, num_epochs=5, learning_rate=1e-4,
                 'avg_loss': f'{running_avg:.4f}',
                 'lr': f'{optimizer.param_groups[0]["lr"]:.2e}'
             })
-            
-            # Print detailed loss every 100 steps
-            if batch_idx % running_window == 0 and print_info:
-                
-                print(f"\nStep {batch_idx}")
-                print(f"Current loss: {current_loss:.4f}")
-                print(f"Running average (last {running_window} steps): {running_avg:.4f}")
-                print(f"Learning rate: {optimizer.param_groups[0]['lr']:.2e}")
-                print(f"Soft prompts range: [{model.soft_prompts.min():.4f}, {model.soft_prompts.max():.4f}]")
         
         avg_loss = total_loss / len(train_dataloader)
         
@@ -891,6 +882,34 @@ def run_prompt_tuning_pipeline(
     return model, generated_responses
 
 
+def evaluate_model_outputs(trained_model: SoftPromptLLM, tokenizer, cap_num: int = 30, config_dict: dict = None) -> list:
+    
+    generated_responses = []
+
+    _, test_data = load_tf_data()
+
+    with torch.no_grad():
+        query_prompts = []
+        
+        for data in test_data["prompt"][:cap_num]:
+            query_prompt, _ = format_prompt_instruction_tuned(
+                data, 
+                test_data["comment"][len(generated_responses)],  # get corresponding comment
+                test_data["label"][len(generated_responses)],    # get corresponding label
+                tokenizer, 
+                previous_messages=[]
+            )
+            query_prompts.append(query_prompt)
+            
+        # batch prompts into group each of size 20 and conduct batch generations
+        for i in range(0, len(query_prompts), 20):
+            batch_prompts = query_prompts[i:i+20]
+            generated_responses.extend(trained_model.generate(batch_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600)))
+    
+    fitness = 1.0 # default value first
+        
+    return fitness, generated_responses
+
 
 def run_token_tuning_pipeline(
     config_dict: dict, 
@@ -943,25 +962,8 @@ def run_token_tuning_pipeline(
     )
 
     # Generate responses on test set
-    trained_model.eval()
-    generated_responses = []
-    _, test_data = load_tf_data()
+    _, generated_responses = evaluate_model_outputs(trained_model, tokenizer, cap_num, config_dict)
     
-    with torch.no_grad():
-        query_prompts = []
-        
-        for data in test_data["prompt"][:cap_num]:
-            query_prompt, _ = format_prompt_instruction_tuned(
-                data, 
-                test_data["comment"][len(generated_responses)],  # get corresponding comment
-                test_data["label"][len(generated_responses)],    # get corresponding label
-                tokenizer, 
-                previous_messages=[]
-            )
-            query_prompts.append(query_prompt)
-        
-        generated_responses = trained_model.generate(query_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600))
-            
     # save generated response & config dictionary
     config_id = config_dict["config_id"]+"_token_tuning"
     with open(f"{RUN_DIR}/generated_responses_{config_id}.json", "w") as f:

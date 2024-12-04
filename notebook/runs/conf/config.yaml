@@ -2,19 +2,19 @@ defaults:
   - _self_
 
 model: Qwen/Qwen2.5-7B-Instruct
-lr: 3e-4
-num_epochs: 10
+lr: 1e-3
+num_epochs: 5
 device: cuda
 prompt_tuning: true
 token_tuning: false
 
 # Added Qwen-7B specific configurations
-num_virtual_tokens: 4
+num_virtual_tokens: 3
 token_dim: 4096
 num_attention_heads: 32
 num_layers: 32
 model_name: "Qwen/Qwen2.5-7B-Instruct"
 prompt_tuning_init_text: "ksgk"
 config_id: "qwen7B"
-batch_size: 12
-accumulation_steps: 24
+batch_size: 9
+accumulation_steps: 4
