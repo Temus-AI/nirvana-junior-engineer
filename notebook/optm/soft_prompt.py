@@ -766,21 +766,22 @@ def train_epoch(
 
 
 # test generation function 
-def generate_text(prompt: str, 
+def generate_text(prompts: Union[str, List[str]], 
                  model, 
                  tokenizer,
-                 max_length: int = 2048,
+                 max_new_tokens: int = 600,
                  temperature: float = 0.9,
                  num_return_sequences: int = 1) -> list[str]:
     """
-    Generate text using a pre-trained language model.
+    Generate text using a pre-trained language model with batch processing.
     
     Args:
-        prompt (str): Input text to generate from
-        model_name (str): Name of the pre-trained model to use
-        max_length (int): Maximum length of generated sequence
-        temperature (float): Controls randomness in generation (higher = more random)
-        num_return_sequences (int): Number of sequences to generate
+        prompts (Union[str, List[str]]): Single prompt or list of input prompts
+        model: The model to use for generation
+        tokenizer: The tokenizer to use
+        max_new_tokens (int): Maximum number of new tokens to generate
+        temperature (float): Controls randomness in generation
+        num_return_sequences (int): Number of sequences to generate per prompt
         
     Returns:
         list[str]: List of generated text sequences
@@ -788,47 +789,53 @@ def generate_text(prompt: str,
     # Ensure model is in evaluation mode
     model.eval()
     
-    # Encode the prompt
-    inputs = tokenizer.encode(prompt, 
-                            return_tensors="pt",
-                            add_special_tokens=True).to("cuda")
-    
+    # Handle single prompt case
+    # Handle single prompt case
+    if isinstance(prompts, str):
+        prompts = [prompts]
+
+    # Encode all prompts in batch
+    inputs = tokenizer(prompts, 
+                    return_tensors="pt",
+                    add_special_tokens=True,
+                    padding=True,
+                    padding_side="left",
+                    truncation=True).to("cuda")
+
     # Generate text
     with torch.no_grad():
         outputs = model.generate(
-            input_ids=inputs,
-            max_length=max_length,
+            input_ids=inputs.input_ids,
+            attention_mask=inputs.attention_mask,
+            max_new_tokens=max_new_tokens,
             temperature=temperature,
             num_return_sequences=num_return_sequences,
-            pad_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
             do_sample=True,
             top_k=50,
-            top_p=0.95
+            top_p=0.95,
         )
-    
-    # Decode and return the generated sequences
-    generated_texts = [
-        tokenizer.decode(output, skip_special_tokens=True)
+
+    full_texts = [
+        tokenizer.decode(output, skip_special_tokens=False)
         for output in outputs
     ]
+
+    generated_texts = []
+    for full_text, prompt in zip(full_texts, prompts):
+        generated_text = full_text.split(prompt)[-1].split(tokenizer.eos_token)[0]
+        generated_texts.append(generated_text)
+    
+    # If num_return_sequences > 1, reshape the output list
+    if num_return_sequences > 1:
+        # Reshape into [batch_size][num_return_sequences]
+        generated_texts = [
+            generated_texts[i:i+num_return_sequences] 
+            for i in range(0, len(generated_texts), num_return_sequences)
+        ]
     
     return generated_texts
-
-
-def evaluate_model_outputs(test_data, model, tokenizer) -> list:
-    """Generate and evaluate model outputs on test data"""
-    generated_responses = []
-    for data in test_data:
-        prompt, _ = format_prompt_instruction_tuned(
-            data["prompt"], 
-            data["comment"], 
-            data["label"],
-            tokenizer, 
-            previous_messages=[]
-        )
-        generated_response = generate_text(prompt, model, tokenizer)
-        generated_responses.append(generated_response)
-    return generated_responses
 
 
 # Main execution pipeline
@@ -904,7 +911,13 @@ def evaluate_model_outputs(trained_model: SoftPromptLLM, tokenizer, cap_num: int
         # batch prompts into group each of size 20 and conduct batch generations
         for i in range(0, len(query_prompts), 20):
             batch_prompts = query_prompts[i:i+20]
-            generated_responses.extend(trained_model.generate(batch_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600)))
+            if "generate" in dir(trained_model):
+                # SoftPrompt LLM has generation method 
+                generated_responses.extend(trained_model.generate(batch_prompts, max_new_tokens=config_dict.get("max_new_tokens", 600)))
+            else:
+                # HF model has no generation method, so we use our own generate_text function
+                generated_responses.extend(generate_text(batch_prompts, trained_model, tokenizer))
+                
     
     fitness = 1.0 # default value first
         
