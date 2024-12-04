@@ -12,7 +12,7 @@ from tqdm import tqdm as tqdm
 import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.join(SCRIPT_DIR, "..", "..", "data", "processed_data.json")
-
+RUN_DIR = os.path.join(SCRIPT_DIR, "..", "..", "runs")
 
 def load_hf_model_precise(model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"):
     """ 
@@ -880,9 +880,9 @@ def run_prompt_tuning_pipeline(
     
     # save generated response & config dictionary
     config_id = config_dict["config_id"]+"_prompt_tuning"
-    with open(f"runs/generated_responses_{config_id}.json", "w") as f:
+    with open(f"{RUN_DIR}/generated_responses_{config_id}.json", "w") as f:
         json.dump(generated_responses, f)
-    with open(f"runs/config_{config_id}.json", "w") as f:
+    with open(f"{RUN_DIR}/config_{config_id}.json", "w") as f:
         json.dump(config_dict, f)
     
     return model, generated_responses
@@ -960,9 +960,9 @@ def run_token_tuning_pipeline(
             
     # save generated response & config dictionary
     config_id = config_dict["config_id"]+"_token_tuning"
-    with open(f"runs/generated_responses_{config_id}.json", "w") as f:
+    with open(f"{RUN_DIR}/generated_responses_{config_id}.json", "w") as f:
         json.dump(generated_responses, f)
-    with open(f"runs/config_{config_id}.json", "w") as f:
+    with open(f"{RUN_DIR}/config_{config_id}.json", "w") as f:
         json.dump(config_dict, f)
 
     return trained_model, generated_responses

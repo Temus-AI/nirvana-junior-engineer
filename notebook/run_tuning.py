@@ -41,7 +41,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.prompt_tuning:
         logging.info(f"Starting {config_dict['config_id']} prompt tuning...")
         try:
-            run_prompt_tuning_pipeline(config_dict)
+            run_prompt_tuning_pipeline(config_dict, cfg.num_epochs, cfg.learning_rate)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} prompt tuning: {str(e)}"
             print(error_msg)
@@ -50,7 +50,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.token_tuning:
         logging.info(f"Starting {config_dict['config_id']} token tuning...")
         try:
-            run_token_tuning_pipeline(config_dict)
+            run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.learning_rate)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} token tuning: {str(e)}"
             print(error_msg)
