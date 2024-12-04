@@ -442,7 +442,7 @@ def extract_json_from_text(text):
     raise ValueError(error_msg)
 
 
-def label_metric(target_label: str, generated_response: str) -> float: 
+def _label_metric(target_label: str, generated_response: str) -> float: 
     """ 
     Evaluate the generated response against the target label
     """
@@ -459,6 +459,21 @@ def label_metric(target_label: str, generated_response: str) -> float:
             return 0.0, f"Target label is '{target_label}', but generated label is '{generated_label}'"
         else:
             return 1.0, "Perfect!"
+        
+def label_metric(target_labels: list, generated_responses: list) -> tuple[float, list]:
+    """
+    Evaluate the generated responses against the target labels
+    """
+    scores = []
+    err_msgs = []
+    for target_label, generated_response in zip(target_labels, generated_responses):
+        score, err_msg = _label_metric(target_label, generated_response)
+        scores.append(score)
+        err_msgs.append(err_msg)
+    avg_score = sum(scores+0.01) / len(scores)
+    
+    return avg_score, err_msgs
+        
 
 def test_model(model_with_soft_prompt, tokenizer, test_data, batch_size=24):
     data_len = len(test_data["prompt"])
@@ -919,9 +934,10 @@ def evaluate_model_outputs(trained_model, tokenizer, cap_num: int = 30, config_d
             else:
                 responses = generate_text(batch_prompts, trained_model, tokenizer)
                 generated_responses.extend(responses)
-    
-    fitness = 1.0 # default value first
-        
+                
+        # assinging fitness score 
+        fitness, err_msgs = label_metric(generated_responses, test_data["label"][:cap_num])
+            
     return fitness, generated_responses
 
 
