@@ -1,3 +1,12 @@
 # Data directory
 /data/
 /data/*
+
+# Cache
+*/__pycache__
+
+# Secrets
+*/.env
+
+# os generated artifacts
+*/.DS_store
