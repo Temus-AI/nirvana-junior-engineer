@@ -422,5 +422,3 @@ def process_data(data: dict, save_path: str = "../data/processed_data.json", use
     import json
     with open(save_path, 'w') as f:
         json.dump(processed_data, f)
-        
-        

@@ -28,7 +28,7 @@ async def generate(prompts: list[str]):
 
 def run_server():
     global engine
-    engine = sgl.Engine(model_path="unsloth/Llama-3.2-11B-Vision-Instruct")
+    engine = sgl.Engine(model_path="unsloth/Llama-3.2-11B-Vision-Instruct") # This is not good ... SGL engine does not support image input (I did not figure it out yet)
     uvicorn.run(app, host="0.0.0.0", port=30000)
 
 if __name__ == "__main__":

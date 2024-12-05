@@ -4,6 +4,8 @@ import requests
 from io import BytesIO
 from typing import List, NamedTuple, Optional
 
+# vLLM endpoint serving for visual language model
+
 class ModelRequestData(NamedTuple):
     llm: LLM
     prompt: str
@@ -72,6 +74,3 @@ if __name__ == "__main__":
     ]
     
     run_llama_inference(question, image_urls)
-
-        
-        
