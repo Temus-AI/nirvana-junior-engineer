@@ -21,6 +21,7 @@ def main(cfg: DictConfig) -> None:
     
     # Form config dict with only the required fields
     config_dict = {k: v for k, v in cfg.items()}
+    config_dict["model_name"] = cfg.model
     
     if cfg.prompt_tuning:
         logging.info(f"Starting {config_dict['config_id']} prompt tuning...")

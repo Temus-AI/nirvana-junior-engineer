@@ -872,7 +872,7 @@ def run_prompt_tuning_pipeline(
 
     # Load model and data
     print("Loading Model...")
-    model_name = config_dict["model_name"]
+    model_name = config_dict.get("model_name", "HuggingFaceTB/SmolLM2-1.7B-Instruct")
     model, tokenizer = load_hf_model_precise(model_name)
 
     print("Loading Dataset ...")
