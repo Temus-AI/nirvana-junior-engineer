@@ -8,9 +8,6 @@ apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
 pip uninstall -y torch torchvision torchaudio flash-attn
 pip cache purge
 
-# Install pyreft
-pip install git+https://github.com/stanfordnlp/pyreft.git
-
 # Install PyTorch with CUDA support
 pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
@@ -32,3 +29,6 @@ pip install --no-cache-dir trl anthropic groq openai huggingface_hub \
 
 # VLLM and Jupyter
 pip install --no-cache-dir vllm jupyterlab
+
+# Install pyreft
+pip install git+https://github.com/stanfordnlp/pyreft.git
