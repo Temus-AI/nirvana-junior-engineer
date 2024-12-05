@@ -103,7 +103,7 @@ def get_reft_model_response(reft_model, tokenizer, prompt):
         eos_token_id=tokenizer.eos_token_id, early_stopping=True
     )
     
-    full_text = tokenizer.decode(reft_response[0], skip_special_tokens=True)
+    full_text = tokenizer.decode(reft_response[0], skip_special_tokens=False)
     return full_text.split(prompt)[-1]
 
 
