@@ -456,12 +456,15 @@ class EvolNode:
         response = self.get_response(prompt_content)
         return response 
     
-    def _get_evolve_response(self, method: str, parents: Optional[list] = None, feedback: str = "", batch_size: int = 5):
+    def _get_evolve_prompt(self, method: str, parents: Optional[list] = None, feedback: str = ""):
         prompt_method = getattr(self.meta_prompt, f'_get_prompt_{method}')
         prompt_content = prompt_method(parents)
         prompt_content += self.relevant_node_desc
-        prompt_content += "\nIdea: " + feedback # External Guidance (perhaps we should reddit / stackoverflow this thingy)
-        
+        prompt_content += "\nFeedback: " + feedback # External Guidance (perhaps we should reddit / stackoverflow this thingy)
+        return prompt_content
+    
+    def _get_evolve_response(self, method: str, parents: Optional[list] = None, feedback: str = "", batch_size: int = 5):
+        prompt_content = self._get_evolve_prompt(method, parents, feedback)
         prompts = [prompt_content] * batch_size
         desc_str = f"Running evolution strategy {method} in parallel with batch size {batch_size}" # Added description string for progress bar
         responses = self.get_response(prompts, desc=desc_str)
