@@ -47,8 +47,14 @@ def map_decision_to_bool(decision: str) -> bool:
         return True
     
 def compare_decision(pred_decision: str, target_decision: bool) -> bool:
-    pred_decision = map_decision_to_bool(pred_decision.lower())
     
+    if isinstance(pred_decision, str):
+        pred_decision = map_decision_to_bool(pred_decision.lower())
+    elif isinstance(pred_decision, bool):
+        pred_decision = pred_decision
+    else:
+        pred_decision = False
+            
     is_aligned = pred_decision == target_decision
     if not is_aligned:
         err_msg = f"Decision mismatch: {pred_decision} (pred) != {target_decision} (target)"
