@@ -443,12 +443,15 @@ def extract_json_from_text(text):
 
 
 def map_pred_label(pred_label: str): 
-    if "maybe" in pred_label:
-        return "no"
-    elif "no" in pred_label: 
-        return "no"
-    else:
+    """ 
+    Many funny label could be generated, we just treat them as rejection as long as no 'yes' is involved
+    """
+    if "yes" in pred_label: 
         return "yes"
+    elif "accepted" in pred_label:
+        return "yes"
+    else:
+        return "no"
     
 def map_target_label(target_label: str):
     if "maybe" in target_label:
