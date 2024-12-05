@@ -443,6 +443,7 @@ def extract_json_from_text(text):
 
 
 map_pred_label = {"maybe": "no", "no": "no", "yes": "yes"} # map predicted label
+map_label = {"maybe": "yes", "yes": "yes", "no": "no"} # map target label
 
 def _label_metric(target_label: str, generated_response: str) -> float: 
     """ 
@@ -458,6 +459,7 @@ def _label_metric(target_label: str, generated_response: str) -> float:
     else:
         generated_label = parsed_response["decision"]
         generated_label = map_pred_label[generated_label] # extra mapping step for prediction
+        target_label = map_label[target_label] # extra mapping step for target label
         
         if generated_label.lower() != target_label.lower():
             return 0.0, f"Target label is '{target_label}', but generated label is '{generated_label}'"
