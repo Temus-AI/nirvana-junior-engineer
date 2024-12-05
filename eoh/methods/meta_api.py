@@ -6,7 +6,7 @@ from .meta_prompt import MetaPrompt, PromptMode
 from .llm import get_openai_response
 
 
-def nodes_from_api(link: str, clean: bool = True, get_response: Optional[Callable] = get_openai_response, evol_method: str = "i1", max_attempts: int = 3):
+def nodes_from_api_deprecated(link: str, clean: bool = True, get_response: Optional[Callable] = get_openai_response, evol_method: str = "i1", max_attempts: int = 3):
     from .population import Evolution
 
     resp = requests.get(link)
