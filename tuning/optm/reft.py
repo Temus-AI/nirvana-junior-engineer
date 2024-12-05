@@ -6,9 +6,8 @@ from .soft_prompt import RUN_DIR, load_hf_model_precise, evaluate_model_outputs,
 
 
 # Loading moded
-def load_reft_model(model_name): 
+def load_reft_model(model_name: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"): 
     
-    model_name = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
     model, tokenizer = load_hf_model_precise(model_name) # load model & tokenizer
     tokenizer = transformers.AutoTokenizer.from_pretrained(
                 model_name, model_max_length=4096, 
@@ -60,7 +59,31 @@ def prepare_reft_training_examples(tokenizer, use_train: bool = True):
     return training_examples, testing_examples
 
 
-def train_reft_model(reft_model, training_examples, tokenizer, config_dict: dict):
+def train_reft_model(reft_model, training_examples, tokenizer, config_dict: dict): 
+    
+    data_module = pyreft.make_last_position_supervised_data_module(
+        tokenizer, reft_model, [e[0] for e in training_examples], # Used to be 'model' but replace with 'reft_model' 
+        [e[1] for e in training_examples]
+    )
+    
+    # train
+    training_args = transformers.TrainingArguments(
+        num_train_epochs=config_dict.get("num_epochs", 50),
+        output_dir=f"{RUN_DIR}/reft",
+        per_device_train_batch_size=config_dict.get("batch_size", 4),
+        gradient_accumulation_steps=config_dict.get("accumulation_steps", 8),  # Added gradient accumulation
+        learning_rate=config_dict.get("lr", 4e-3),
+        logging_steps=config_dict.get("logging_steps", 2),
+        report_to=[]
+    )
+    
+    trainer = ReftTrainerForCausalLM(
+        model=reft_model, tokenizer=tokenizer, args=training_args, **data_module)
+    
+    _ = trainer.train()
+    
+
+def train_reft_model_old(reft_model, training_examples, tokenizer, config_dict: dict):
     
     data_module = pyreft.make_last_position_supervised_data_module(
         tokenizer, reft_model, [e[0] for e in training_examples], # Used to be 'model' but replace with 'reft_model' 
@@ -70,13 +93,14 @@ def train_reft_model(reft_model, training_examples, tokenizer, config_dict: dict
     training_args = transformers.TrainingArguments(
         num_train_epochs=config_dict.get("num_epochs", 50),
         output_dir=f"{RUN_DIR}/reft",
-        per_device_train_batch_size=config_dict.get("per_device_train_batch_size", 6),
-        gradient_accumulation_steps=config_dict.get("accumulation_steps", 4),  # Added gradient accumulation
+        per_device_train_batch_size=config_dict.get("per_device_train_batch_size", 4),
+        gradient_accumulation_steps=config_dict.get("accumulation_steps", 8),  # Added gradient accumulation
         learning_rate=config_dict.get("lr", 4e-3),
         logging_steps=config_dict.get("logging_steps", 2),
         report_to=[]
     )
 
+    # This CustomReftTrainer is causing memory overloading issue ? (Hard to believe ...)
     class CustomReftTrainer(ReftTrainerForCausalLM):
         def compute_loss(self, model, inputs, *args, **kwargs):
             kwargs.pop('num_items_in_batch', None)
@@ -186,12 +210,12 @@ def run_reft_pipeline(
     print("🔄 Preparing training and testing examples...")
     training_examples, testing_examples = prepare_reft_training_examples(tokenizer)
     
-    # Evaluate Base model
-    print_section("BASE MODEL EVALUATION", "─")
-    print("🔄 Evaluating base model...")
-    from .soft_prompt import evaluate_model_outputs
-    orig_fitness, orig_responses, orig_err_msgs = evaluate_model_outputs(model, tokenizer, cap_num, config_dict={})
-    print("✅ Base model evaluation complete")
+    # # Evaluate Base model
+    # print_section("BASE MODEL EVALUATION", "─")
+    # print("🔄 Evaluating base model...")
+    # from .soft_prompt import evaluate_model_outputs
+    # orig_fitness, orig_responses, orig_err_msgs = evaluate_model_outputs(model, tokenizer, cap_num, config_dict={})
+    # print("✅ Base model evaluation complete")
     
     print_metric_comparison("Dataset Statistics", {
         "Training Samples": len(training_examples),
@@ -213,9 +237,9 @@ def run_reft_pipeline(
     
     training_info = {
         "config_dict": config_dict,
-        "orig_fitness": orig_fitness,
-        "orig_responses": orig_responses,
-        "orig_err_msgs": orig_err_msgs,
+        # "orig_fitness": orig_fitness,
+        # "orig_responses": orig_responses,
+        # "orig_err_msgs": orig_err_msgs,
         "reft_fitness": fitness,
         "reft_responses": generated_responses,
         "reft_err_msgs": err_msgs
