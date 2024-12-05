@@ -6,9 +6,9 @@ def prep_tf_node(prompt_mode: bool = True):
     """
     
     import sys 
-    sys.path.append("../notebook/") 
-    from optm.soft_prompt import load_tf_data, tf_metric_map
-    train_data, test_data = load_tf_data("../data/processed_data_clean.json")
+    sys.path.append("../tuning/") 
+    from optm.soft_prompt import load_tf_data, tf_metric_map, BASE_PATH
+    train_data, test_data = load_tf_data(BASE_PATH)
     
     mode = PromptMode.PROMPT if prompt_mode else PromptMode.CODE
     
