@@ -10,13 +10,12 @@ device: cuda
 prompt_tuning: false
 token_tuning: false
 reft: true
+cap_num: 1000 # use all test cases for evaluation (for full runs only)
 
-# Added Qwen-7B specific configurations
 num_virtual_tokens: 3
 token_dim: 4096
 num_attention_heads: 32
 num_layers: 32
-model_name: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 prompt_tuning_init_text: "Json output"
 config_id: "smolLM2"
 batch_size: 9

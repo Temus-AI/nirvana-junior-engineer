@@ -442,6 +442,8 @@ def extract_json_from_text(text):
     raise ValueError(error_msg)
 
 
+map_pred_label = {"maybe": "no", "no": "no", "yes": "yes"} # map predicted label
+
 def _label_metric(target_label: str, generated_response: str) -> float: 
     """ 
     Evaluate the generated response against the target label
@@ -455,6 +457,8 @@ def _label_metric(target_label: str, generated_response: str) -> float:
         return 0.0, "Generated response does not contain 'decision' key"
     else:
         generated_label = parsed_response["decision"]
+        generated_label = map_pred_label[generated_label] # extra mapping step for prediction
+        
         if generated_label.lower() != target_label.lower():
             return 0.0, f"Target label is '{target_label}', but generated label is '{generated_label}'"
         else:

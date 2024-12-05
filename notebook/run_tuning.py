@@ -34,7 +34,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.token_tuning:
         logging.info(f"Starting {config_dict['config_id']} token tuning...")
         try:
-            run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.lr)
+            run_token_tuning_pipeline(config_dict, cfg.num_epochs, cfg.lr, "cuda", cfg.cap_num)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} token tuning: {str(e)}"
             print(error_msg)
@@ -43,7 +43,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.reft: 
         logging.info(f"Starting {config_dict['config_id']} reft tuning...")
         try:
-            run_reft_pipeline(config_dict, cfg.num_epochs, cfg.lr)
+            run_reft_pipeline(config_dict, cfg.num_epochs, cfg.lr, "cuda", cfg.cap_num)
         except Exception as e:
             error_msg = f"Error running {config_dict['config_id']} reft tuning: {str(e)}"
             print(error_msg)
