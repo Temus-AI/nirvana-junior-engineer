@@ -476,8 +476,8 @@ def _label_metric(target_label: str, generated_response: str) -> float:
     else:
         generated_label = parsed_response["decision"]
         
-        generated_label = map_pred_label[generated_label.lower()]
-        target_label = map_target_label[target_label.lower()]
+        generated_label = map_pred_label(generated_label.lower())
+        target_label = map_target_label(target_label.lower())
         
         if generated_label.lower() != target_label.lower():
             return 0.0, f"Target label is '{target_label}', but generated label is '{generated_label}'"

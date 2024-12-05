@@ -44,7 +44,7 @@ def map_decision_to_bool(decision: str) -> bool:
     elif decision in no_list:
         return False
     else:
-        raise ValueError(f"Unknown decision: {decision}")
+        return True
     
 def compare_decision(pred_decision: str, target_decision: bool) -> bool:
     pred_decision = map_decision_to_bool(pred_decision.lower())
