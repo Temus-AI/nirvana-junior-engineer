@@ -226,7 +226,7 @@ try:
         def completions(
             self,
             prompts: List[str],
-            use_tqdm: bool = False,
+            use_tqdm: bool = True,
             **kwargs: Union[int, float, str],
         ) -> List[str]:
             formatted_prompts = [self.format_query_prompt(prompt.strip()) for prompt in prompts]
@@ -238,7 +238,7 @@ try:
         def generate(
             self,
             prompts: List[str],
-            use_tqdm: bool = False,
+            use_tqdm: bool = True,
             **kwargs: Union[int, float, str],
         ) -> List[str]:
             formatted_prompts = [self.format_query_prompt(prompt.strip()) for prompt in prompts]
@@ -277,11 +277,11 @@ def get_batch_vllm_func(name: str = "") -> Callable:
 # RundPod vLLM endpoint #
 #########################
 
-def get_async_vllm_endpoint(endpoint_id: str, runpod_api_key: str, desc: str = "Processing LLM queries") -> Callable:
+def get_async_vllm_endpoint(endpoint_id: str, runpod_api_key: str, desc: str = "Processing LLM queries", model_name: str = "meta-llama/Llama-3.1-8B-Instruct") -> Callable:
     async def get_completion(client, session, query: str, system_prompt: str = "You are a Turing award winner."):
         try:
             response = await client.chat.completions.create(
-                model="meta-llama/Llama-3.1-8B-Instruct",
+                model=model_name,
                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": query}]
             )
             return response.choices[0].message.content
@@ -292,6 +292,7 @@ def get_async_vllm_endpoint(endpoint_id: str, runpod_api_key: str, desc: str = "
     async def run_parallel_inference(query_list: list, system_prompt: str = "You are a Turing award winner."):
         try:
             client = AsyncOpenAI(
+                # base_url=f"https://api.runpod.ai/v2/{endpoint_id}",  # Even simpler endpoint
                 base_url=f"https://api.runpod.ai/v2/{endpoint_id}/openai/v1",
                 api_key=runpod_api_key,
             )
