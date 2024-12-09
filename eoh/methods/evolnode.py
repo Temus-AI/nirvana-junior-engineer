@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -5,6 +6,9 @@ import time
 from collections import Counter, defaultdict
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import httpx
+from langchain_community.document_transformers import Html2TextTransformer
+from langchain_core.documents import Document
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
@@ -21,6 +25,8 @@ from .meta_execute import (
 )
 from .meta_prompt import (
     ALIGNMENT_CHECK_PROMPT,
+    SEARCH_PROMPT,
+    SEARCH_SUMMARISATION_PROMPT,
     MetaPlan,
     MetaPrompt,
     PromptMode,
@@ -605,6 +611,63 @@ class EvolNode:
 
         return reasonings, codes
 
+    async def get_search_text(self, batch_size: int, search_mode: int) -> str:
+        from .meta_api import _search_google
+
+        prompt_content = (
+            f"{self.relevant_node_desc}\n{self.meta_prompt.to_dict()}\n" + SEARCH_PROMPT
+        )
+        if search_mode == 2:
+            prompt_content += (
+                "\nYou are forced to say maybe and generate the best question"
+            )
+        prompts = [prompt_content] * batch_size
+        responses = self.get_response(prompts)
+        questions = []
+        votes = 0
+        candidate = ""
+        for response in responses:
+            try:
+                search_json = extract_json_from_text(response)
+                confidence = search_json.get("confidence").lower()
+                question = search_json.get("question")
+                if votes == 0:
+                    candidate = confidence
+                    votes = 1
+                else:
+                    if confidence == candidate:
+                        votes += 1
+                    else:
+                        votes -= 1
+                if question:
+                    questions.append(question)
+            except Exception:
+                print("ERROR PARSING SEARCH TEXT")
+
+        if candidate == "maybe" or search_mode == 2:
+            best_question = f"Given the task: {self.meta_prompt.task}, what is the best question in the list for searching in google?\nList:{questions}\nPut the index (starting from 0) of the best question in the list in curly brackets like this {{0}}."
+            response = self.get_response(best_question)
+            idx = int(re.findall(r"\{(.*)\}", response, re.DOTALL)[0])
+            links = [
+                link_object["link"]
+                for link_object in _search_google(questions[idx])["organic"]
+            ]
+            async with httpx.AsyncClient() as client:
+                responses = await asyncio.gather(*[client.get(link) for link in links])
+
+            docs = [Document(page_content=response.text) for response in responses[:3]]
+            html2text = Html2TextTransformer()
+            docs_transformed = html2text.transform_documents(docs)
+            prompts = [
+                doc_transformed.page_content + SEARCH_SUMMARISATION_PROMPT
+                for doc_transformed in docs_transformed
+            ]
+
+            responses = self.get_response(prompts)
+            return "\n-----------------------------------\n".join(responses)
+        else:
+            return ""
+
     def evolve(
         self,
         method: str,
@@ -618,11 +681,23 @@ class EvolNode:
         print_summary: bool = True,
         query_node: bool = True,
         timeout: bool = True,
+        search: int = 0,
+        search_threshold: float = 0.5,
+        search_batch_size: int = 5,
     ):
         """
         Evolve node and only accept structurally fit solutions
         Attempts multiple evolutions before returning the final output
         """
+        rest = 0
+        count = 0
+        if search:
+            feedback += asyncio.run(self.get_search_text(search_batch_size, search))
+        elif search_threshold < 1.0:
+            search_threshold = round(search_threshold * batch_size)
+            rest = batch_size - search_threshold
+            batch_size = search_threshold
+
         start_time = time.time()
         # Query once
         offsprings = []
@@ -654,7 +729,6 @@ class EvolNode:
         end_time = time.time()
         evaluation_time = end_time - evolve_end_time
         if print_summary:
-            generation_time = evolve_time
             total_time = end_time - start_time
             print(
                 global_summary
@@ -683,7 +757,9 @@ class EvolNode:
                     self.fitness = fitness
                     self.error_msg = err_msg
 
-            # if fitness > fitness_threshold:
+            if fitness > fitness_threshold:
+                count += 1
+
             offsprings.append(
                 {
                     "reasoning": reasoning,
@@ -696,8 +772,29 @@ class EvolNode:
             if fitness >= 1.0:
                 self.save(self.library_dir)
 
+        if rest and not count:
+            offsprings.extend(
+                self.evolve(
+                    method,
+                    parents,
+                    replace,
+                    feedback,
+                    rest,
+                    fitness_threshold,
+                    num_runs,
+                    max_tries,
+                    print_summary,
+                    query_node,
+                    timeout,
+                    2,
+                    search_threshold,
+                )
+            )
+
         if not replace:
             return offsprings
+        else:
+            return []
 
     def _evaluate_structure_fitness(
         self, test_inputs: List[Dict], code: Optional[str] = None

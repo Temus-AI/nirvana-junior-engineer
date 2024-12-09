@@ -107,7 +107,7 @@ class MetaPrompt:
         """
         prompt_content = (
             f"Task: {self.task}\n\n"
-            f"Create 5 diverse test cases for the Python function '{self.func_name}'. Each test case should be an (input, output) pair. "
+            f"Create {num_cases} diverse test cases for the Python function '{self.func_name}'. Each test case should be an (input, output) pair. "
             "Include a variety of scenarios, especially edge cases, to thoroughly test the function.\n\n"
             "Format your response as a list of dictionaries in JSON format. Each dictionary should contain 'input' and 'expected_output' keys. "
             "Make sure the data types in your test cases match the function's input and output types.\n\n"
@@ -1147,3 +1147,27 @@ Only output a json with the following structure:
 ```
 You can have reasoning before this, but always have the json
 """
+
+SEARCH_PROMPT = """You are a master programmer. Based on the given function and available functions you can use, output a json with two keys, "confidence" and "question". For "confidence", think about whether you have enough knowledge to code the function, such as do you know if there is an api to do stuff or how to use it. If you are very sure, say yes. If you only have to use the available functions, this should be yes
+If you are not sure you can code the function efficiently, put maybe. For "question", if you put maybe in "confidence", think about what you would search for be confident you can code the function. Only give one search query.
+If you are very sure, put null for this.
+Here is the structure of the json:
+```json
+{
+    "confidence": "yes/maybe",
+    "question": "search query"/null
+}
+MAKE SURE THE QUESTION IS IN ONE LINE and you cannot have questions about the available functions
+```
+"""
+
+SEARCH_SUMMARISATION_PROMPT = """You are the best programmer.
+1.) Analyze the input text and generate 5 essential questions that, when answered, capture the main points and core meaning of the text.
+2.) When formulating your questions: 
+    a. Address the central theme or argument 
+    b. Identify key supporting ideas 
+    c. Highlight important facts or evidence 
+    d. Reveal the author's purpose or perspective
+    e. Explore any significant implications or conclusions. 
+3.) Answer all of your generated questions one-by-one in detail. It is recommended to put some code as well. 
+Only give the questions and answers with code if there is code, nothing else"""  # noqa: E501
