@@ -1,8 +1,10 @@
 from optm.soft_prompt import load_tf_data, _form_query, _form_response, load_hf_model_precise, RUN_DIR
-import pyreft, transformers
+import pyreft
+import transformers
 from pyreft import ReftTrainerForCausalLM
-import torch, json
-from .soft_prompt import RUN_DIR, load_hf_model_precise, evaluate_model_outputs, label_metric
+import torch
+import json
+from .soft_prompt import RUN_DIR, load_hf_model_precise, label_metric
 
 
 # Loading moded
@@ -157,7 +159,6 @@ def evaluate_reft_model_outputs(reft_model, tokenizer, cap_num: int = 30) -> tup
             true_responses.append(response_str)
     
     # Calculate fitness scores
-    from .soft_prompt import label_metric
     fitness, err_msgs = label_metric(test_set["label"][:cap_num], generated_responses)
             
     return fitness, generated_responses, err_msgs

@@ -513,35 +513,34 @@ try:
 except:
     pass
 
-import requests 
+import requests
 
 
 # Own served instance (vLLM)
 def get_vllm_endpoint_func(
-        model_name: str,
-        POD_ID: str, 
-        INTERNAL_PORT: int = 30000,
+    model_name: str,
+    POD_ID: str,
+    INTERNAL_PORT: int = 30000,
 ):
-    BASE_URL = f"https://{POD_ID}-{INTERNAL_PORT}.proxy.runpod.net" # replace "localhost" with this
+    BASE_URL = f"https://{POD_ID}-{INTERNAL_PORT}.proxy.runpod.net"  # replace "localhost" with this
 
-    def get_endpoint_response(prompts: list[str]):
-        response = requests.post(
-            f"{BASE_URL}/generate",
-            json=prompts 
-        )
+    def get_endpoint_response(prompts: list[str], system=""):
+        if type(prompts) is str:
+            prompts = [prompts]
+        response = requests.post(f"{BASE_URL}/generate", json=prompts)
 
         if response.status_code == 200:
             results = response.json()
-            return results
+            return results["results"]
         else:
             print(f"Error: {response.status_code}")
             print(response.text)
             return []
-        
-    # some initial call to warm up the server  
-    print(":: Sending warmup message to initialize the server ..." )
+
+    # some initial call to warm up the server
+    print(":: Sending warmup message to initialize the server ...")
     warmup_prompt = ["This is a warmup prompt to initialize the server."]
     get_endpoint_response(warmup_prompt)
     print(":: Server initialized successfully!")
-        
+
     return get_endpoint_response

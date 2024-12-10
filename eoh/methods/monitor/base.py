@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from time import time, sleep
-from typing import Any, Callable, Optional
+from time import time
+from typing import Callable, Optional
 import threading
 from queue import Queue
 import tiktoken

@@ -2,8 +2,9 @@
 # Temasek Foundation Dataset used here :: Binary + Comment type of data format
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch, json, random
-import numpy as np 
+import torch
+import json
+import random
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
@@ -640,7 +641,7 @@ def train_soft_prompt(model, train_dataloader, num_epochs=5, learning_rate=1e-4,
 # Turns out to have same speed as token tuning, while being less stable #
 #########################################################################
 
-from peft import PromptEmbedding, PromptTuningConfig, get_peft_model
+from peft import PromptTuningConfig, get_peft_model
 from transformers import get_linear_schedule_with_warmup
 
 def setup_prompt_tuning_config(config_dict: dict) -> PromptTuningConfig:
@@ -796,7 +797,7 @@ def train_epoch(
     
     avg_eval_loss = total_eval_loss / max(1, valid_eval_batches)
     
-    print(f"\nEpoch Summary:")
+    print("\nEpoch Summary:")
     print(f"Valid training batches: {valid_batches}/{len(train_dataloader)}")
     print(f"Average training loss: {avg_train_loss:.4f}")
     print(f"Valid evaluation batches: {valid_eval_batches}/{len(test_dataloader)}")

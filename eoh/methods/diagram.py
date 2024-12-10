@@ -300,7 +300,7 @@ def save_svg_from_d2(d2_code, file_name, output_dir="d2_output"):
     try:
       # Redirect stdout and stderr to devnull
         subprocess.run(["d2", d2_file_path, svg_file_path], check=True)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         svg_file_path = None
     except FileNotFoundError:
         print("Error: d2 command not found. Make sure d2 is installed and in your PATH.")

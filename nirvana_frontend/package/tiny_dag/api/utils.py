@@ -1,5 +1,6 @@
-import requests
 import json
+
+import requests
 
 # Base URL for the API
 BASE_URL = "http://localhost:8000"
@@ -17,20 +18,18 @@ test_node = {
     "fitness": 0.8,
     "reasoning": "test reasoning",
     "inputTypes": ["str"],
-    "outputTypes": ["str"]
+    "outputTypes": ["str"],
 }
 
-test_edge = {
-    "id": 1,
-    "source": 1,
-    "target": 2
-}
+test_edge = {"id": 1, "source": 1, "target": 2}
+
 
 def get_graph_state():
     response = requests.get(f"{BASE_URL}/api/graph")
     assert response.status_code == 200
     graph_state = response.json()
-    return graph_state 
+    return graph_state
+
 
 def add_node(node):
     response = requests.post(f"{BASE_URL}/api/nodes", json=node)
@@ -41,14 +40,15 @@ def add_node(node):
     except:
         print("Add Node Issue Message: ", response.json())
         return False
-    
+
+
 def update_graph_state(state):
     """Update the entire graph state"""
     try:
         response = requests.put(f"{BASE_URL}/api/graph", json=state)
         print(f"Status code: {response.status_code}")
         print(f"Response text: {response.text}")
-        
+
         if response.status_code == 200:
             return response.json()
         else:
@@ -57,20 +57,21 @@ def update_graph_state(state):
     except Exception as e:
         print(f"Update Graph State Issue Message: {str(e)}")
         return False
-    
+
+
 def add_edge(edge):
     try:
         # Print request details for debugging
         endpoint = f"{BASE_URL}/api/edges"
         print(f"Sending request to: {endpoint}")
         print(f"Edge data: {json.dumps(edge, indent=2)}")
-        
+
         response = requests.post(endpoint, json=edge)
-        
+
         # Print response details
         print(f"Status code: {response.status_code}")
         print(f"Response text: {response.text}")
-        
+
         assert response.status_code == 200
         response_data = response.json()
         assert response_data["status"] == "success"
@@ -84,8 +85,9 @@ def add_edge(edge):
     except Exception as e:
         print(f"Add Edge Issue Message: {str(e)}")
         return False
-    
-def update_node(node_id: int, node: dict): 
+
+
+def update_node(node_id: int, node: dict):
     response = requests.put(f"{BASE_URL}/api/nodes/{node_id}", json=node)
     try:
         assert response.status_code == 200
@@ -95,7 +97,8 @@ def update_node(node_id: int, node: dict):
     except AssertionError:
         print("Update Node Issue Message:", response.json())
         return False
-    
+
+
 def delete_node(node_id):
     response = requests.delete(f"{BASE_URL}/api/nodes/{node_id}")
     try:
@@ -105,7 +108,8 @@ def delete_node(node_id):
     except:
         print("Delete Node Issue Message: ", response.json())
         return False
-    
+
+
 def delete_edge(edge_id):
     response = requests.delete(f"{BASE_URL}/api/edges/{edge_id}")
     try:
@@ -115,32 +119,41 @@ def delete_edge(edge_id):
     except:
         print("Delete Edge Issue Message: ", response.json())
         return False
-    
+
+
 # Derivative Functions
 
+
 def decide_xy_pos(source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET):
-    # Decide X position 
-    avg_x = graph_state["nodes"][source_id]["x"] + X_OFFSET
+    # Decide X position
+    if source_id is not None:
+        source = None
+        for node in graph_state["nodes"]:
+            if node["id"] == source_id:
+                source = node
+                break
     if same_level_nodes:
         avg_x = sum(n["x"] for n in same_level_nodes) / len(same_level_nodes)
+    else:
+        avg_x = source["x"] + X_OFFSET if source_id is not None else X_OFFSET
     x_pos = avg_x
-    
-    # Decide Y position 
+
+    # Decide Y position
     y_positions = [n["y"] for n in same_level_nodes]
-    y_min, y_max = min(y_positions), max(y_positions) if y_positions else (0, 0)
-    
-    y_start = graph_state["nodes"][source_id]["y"]
-    
-    if abs(y_start - y_min) > abs(y_start - y_max): 
+    y_min, y_max = (
+        (min(y_positions), max(y_positions)) if len(y_positions) > 0 else (0, 0)
+    )
+
+    y_start = source["y"] if source_id is not None else 0
+    if abs(y_start - y_min) >= abs(y_start - y_max):
         y_pos = y_max + Y_OFFSET
     else:
         y_pos = y_min - Y_OFFSET
-        
-    return x_pos, y_pos 
+
+    return x_pos, y_pos
 
 
 def add_nodes(nodes, edges):
-
     graph_state = get_graph_state()
 
     X_OFFSET = 250
@@ -149,7 +162,7 @@ def add_nodes(nodes, edges):
     # Group nodes by their source nodes
     source_groups = {}
     for node in nodes:
-        source_ids = [edge['source'] for edge in edges if edge['target'] == node['id']]
+        source_ids = [edge["source"] for edge in edges if edge["target"] == node["id"]]
         source_id = source_ids[0] if source_ids else None
         if source_id not in source_groups:
             source_groups[source_id] = []
@@ -158,16 +171,28 @@ def add_nodes(nodes, edges):
     # Collect node at same level
     for source_id, group_nodes in source_groups.items():
         for target_node in group_nodes:
-            same_level_node_ids = [connection["target"] for connection in graph_state["connections"] if connection["source"] == source_id]
-            same_level_nodes = [node for node in graph_state["nodes"] if node["id"] in same_level_node_ids]  
-            
-            x_pos, y_pos = decide_xy_pos(source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET)
-            
+            same_level_node_ids = [
+                connection["target"]
+                for connection in graph_state["connections"]
+                if connection["source"] == source_id
+            ]
+            same_level_nodes = [
+                node
+                for node in graph_state["nodes"]
+                if node["id"] in same_level_node_ids
+            ]
+            x_pos, y_pos = decide_xy_pos(
+                source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET
+            )
+
             target_node["x"], target_node["y"] = x_pos, y_pos
             graph_state["nodes"].append(target_node)
-            graph_state["connections"].append({"source": source_id, "target": target_node["id"]})
+            if source_id is not None:
+                graph_state["connections"].append(
+                    {"source": source_id, "target": target_node["id"]}
+                )
 
-    # update graph state 
+    # update graph state
     update_graph_state(graph_state)
 
     return

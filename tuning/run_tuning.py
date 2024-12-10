@@ -2,7 +2,6 @@ from optm.soft_prompt import *
 from optm.reft import run_reft_pipeline
 from runs.config import *
 import logging
-from datetime import datetime
 import hydra
 from omegaconf import DictConfig
 import os

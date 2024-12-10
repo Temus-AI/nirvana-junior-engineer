@@ -740,9 +740,13 @@ class EvolNode:
             )
 
         for code_index in fitness_per_code:
-            fitness = fitness_per_code[code_index]()
-            reasoning = reasonings[code_index]
-            code = codes[code_index]
+            fitness = (
+                fitness_per_code[code_index]()
+                if len(fitness_per_code) > code_index
+                else 0.0
+            )
+            reasoning = reasonings[code_index] if len(reasonings) > code_index else ""
+            code = codes[code_index] if len(codes) > code_index else ""
             err_msg = (
                 "\n".join(str(err) for err in errors_per_code[code_index])
                 if len(errors_per_code[code_index]) > 0
@@ -1013,7 +1017,6 @@ class EvolNode:
             )  # sanity check against stochastic nature of prompt-based node
 
         test_inputs = [case[0] for case in test_cases]
-
         if self.meta_prompt.mode == PromptMode.CODE:
             output_per_code_per_test, errors_per_code_per_test = (
                 self.call_code_function_parallel(test_inputs, codes, timeout=timeout)

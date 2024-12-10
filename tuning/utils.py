@@ -13,11 +13,9 @@ no_label_list = ["No", "No ", "Reject"] # meaningful negative signal
 # Util functions
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from typing import Optional
 from collections import Counter
 from typing import Callable
-from nltk.util import ngrams
 import nltk
 import pandas as pd
 import seaborn as sns

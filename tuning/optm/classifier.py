@@ -2,11 +2,9 @@
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 import json
 

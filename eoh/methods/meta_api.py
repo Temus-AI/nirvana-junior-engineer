@@ -1,3 +1,4 @@
+import asyncio
 import http.client
 import json
 import os
@@ -19,9 +20,9 @@ from .meta_prompt import (
     GENERATE_NODES_FROM_GUIDE,
     PAGE_CLASSIFIER,
     MetaPrompt,
-    PromptMode,
     extract_json_from_text,
     extract_python_funcions,
+    get_prompt_mode,
 )
 from .population import Evolution
 
@@ -65,7 +66,7 @@ def nodes_from_api_deprecated(
                     outputs=node.get("outputs"),
                     input_types=node.get("input_types"),
                     output_types=node.get("output_types"),
-                    mode=PromptMode((node.get("mode", "code")).lower()),
+                    mode=get_prompt_mode(node.get("mode", "code").lower()),
                 )
                 nodes.append(
                     (
@@ -118,59 +119,74 @@ def _search_google(query: str) -> Dict[str, Any]:
         conn.close()
 
 
-def nodes_from_api(
+async def aget_content(link, client):
+    res = await client.get(link, follow_redirects=True)
+    if res.status_code == 200:
+        url = str(res.url)
+        return res.text, url
+    else:
+        return "", ""
+
+
+async def nodes_from_api(
     api_name: str,
     max_links: int = None,
-    get_response: Optional[Callable] = get_openai_response,
+    fast_response: Optional[Callable] = get_openai_response,
+    slow_response: Optional[Callable] = get_openai_response,
     evol_method: str = "i1",
-    max_attempts: int = 3,
+    creation_max_attempts: int = 3,
+    node_max_attempts: int = 3,
 ):
-    def get_content(link):
-        res = httpx.get(link, follow_redirects=True)
-        res.raise_for_status()
-        url = str(res.url)
+    limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
+    client = httpx.AsyncClient(timeout=None, limits=limits)
+    webpages = []
+    visit = set()
 
-        return res.text, url
-
-    link = _search_google(f"{api_name} python docs")["organic"][0]["link"]
-    domain = urllib.parse.urlparse(link).netloc
-    try:
-        content, url = get_content(link)
-    except httpx.HTTPStatusError as e:
-        print(f"Error occurred during request: {str(e)}")
-        return []
-
-    htmls = [content]
-    links = [url]
-    ptr = 0
-    while ptr < len(links):
-        soup = BeautifulSoup(htmls[ptr], "html.parser")
+    async def recursive_search(link, ref_url=None):
+        nonlocal webpages, visit, client
+        content, url = await aget_content(link, client)
+        if ref_url is None:
+            ref_url = url
+        if url and content:
+            webpages.append((url, content))
+            visit.add(url)
+        soup = BeautifulSoup(content, "html.parser")
+        new_links = []
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            new_link = urllib.parse.urljoin(links[ptr], href.split("#")[0])
+            new_link = urllib.parse.urljoin(link, href.split("#")[0])
             parse = urllib.parse.urlparse(new_link)
             if (
-                parse.netloc == domain
-                and new_link not in links
-                and new_link + "/" not in links
+                ref_url in new_link
+                and new_link not in visit
+                and new_link + "/" not in visit
                 and parse.scheme in ["http", "https"]
             ):
-                try:
-                    content, url = get_content(new_link)
-                    htmls.append(content)
-                    links.append(url)
-                except httpx.HTTPStatusError as e:
-                    print(f"Error occurred during request: {str(e)}")
-        ptr += 1
+                visit.add(new_link)
+                new_links.append(new_link)
+        await asyncio.gather(*[recursive_search(link, ref_url) for link in new_links])
+
+    link = _search_google(f"{api_name} python docs")["organic"][0]["link"]
+
+    print("Scraping links")
+    asyncio.run(recursive_search(link))
+
+    asyncio.run(client.aclose())
+    links, htmls = zip(*webpages)
+
+    print("Choosing and preprocessing links")
     prompt = CHOOSE_USEFUL_LINKS
     if max_links is not None:
         prompt += f"\nOnly choose maximum {max_links} links as the junior developer does not have time or people will die. Only choose the most useful links."
     prompt += f"\nLinks: {links}"
-    response = get_response(prompt)
-    response = response if type(response) is str else response[0]
-    indexes = extract_json_from_text(response)["links"]
-    htmls = [htmls[i] for i in indexes]
-
+    responses = fast_response([prompt] * 20)
+    for response in responses:
+        try:
+            indexes = extract_json_from_text(response)["links"]
+            htmls = [htmls[i] for i in indexes]
+            break
+        except Exception:
+            continue
     docs = [Document(page_content=html) for html in htmls]
     html2text = Html2TextTransformer()
     docs_transformed = html2text.transform_documents(docs)
@@ -178,11 +194,17 @@ def nodes_from_api(
 
     doc_nodes = []
     guide_nodes = []
+    print("Classifying links and extracting nodes")
     for text in texts:
         prompt = text + PAGE_CLASSIFIER
-        response = get_response(prompt)
-        response = response if type(response) is str else response[0]
-        classification = extract_json_from_text(response)["class"]
+        responses = fast_response([prompt] * 30)
+        classification = "useless"
+        for response in responses:
+            try:
+                classification = extract_json_from_text(response)["class"]
+                break
+            except Exception:
+                continue
         if classification == "useless":
             continue
         elif classification == "tutorial":
@@ -190,9 +212,10 @@ def nodes_from_api(
         else:
             prompt = text + GENERATE_NODES_FROM_DOCS
         nodes = []
-        for _ in range(max_attempts):
-            response = get_response(prompt)
+        for _ in range(creation_max_attempts):
+            response = slow_response(prompt)
             response = response if type(response) is str else response[0]
+            print(response)
             try:
                 node_dict = extract_json_from_text(response)["nodes"]
                 for node in node_dict:
@@ -203,14 +226,19 @@ def nodes_from_api(
                         outputs=node.get("outputs"),
                         input_types=node.get("input_types"),
                         output_types=node.get("output_types"),
-                        mode=PromptMode((node.get("mode", "code")).lower()),
+                        mode=get_prompt_mode(node.get("mode", "code").lower()),
                     )
                     evol = Evolution(
-                        pop_size=1,
                         meta_prompt=meta_prompt,
-                        get_response=get_response,
-                        test_cases=node.get("tests"),
+                        get_response=fast_response,
+                        test_cases=[
+                            (test["input"], test["output"])
+                            for test in node.get("tests")
+                        ]
+                        if type(node.get("tests")) is list
+                        else (node.get("tests")["input"], node.get("tests")["output"]),
                         custom_metric_map=node.get("metric_map"),
+                        pop_size=node_max_attempts,
                     )
                     if classification == "documentation":
                         nodes.append(
@@ -232,9 +260,9 @@ def nodes_from_api(
                 print(
                     f"Failed to extract fully formed nodes from API plan response: {e}"
                 )
-            except Exception as e:
-                nodes = []
-                print(f"Error occurred: {e}")
+            # except Exception as e:
+            #     nodes = []
+            #     print(f"Error occurred: {e}")
 
         doc_nodes += nodes
     for node in doc_nodes:

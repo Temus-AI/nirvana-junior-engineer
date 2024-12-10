@@ -3,7 +3,7 @@ import os
 from .meta_prompt import MetaPrompt
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from typing import List, Dict
+from typing import List
 from .evolnode import EvolNode
 
 

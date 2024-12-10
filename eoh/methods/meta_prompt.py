@@ -1041,7 +1041,7 @@ GENERATE_NODES_FROM_DOCS = """\nYou are a genius programmer. Generate a JSON-sty
 - `output_types`: List of corresponding types for each output parameter.
 - `target`: The purpose or goal that the action contributes to.
 - `mode`: The execution mode for this task ("CODE" or "PROMPT").
-- `tests`: List of test cases for the node based on the documentation as a tuple of input and output dicts where the keys are the parameter name only if you are sure the output is correct. Ypu always have to put a test case, but if you are not sure about the output, but bogus values
+- `tests`: List of test cases for the node based on the documentation as a dict of input and output dicts where the keys are the parameter name only if you are sure the output is correct. You always have to put a test case, but if you are not sure about the output, put bogus values.
 - `metric_map`: This will likely be null if you're confident that your output is correct. If you cannot predict the output or a parameter in the output as the task is non-determistic and not accurately predictable without error bars (for example, the time it takes to return a file), return a dictionary with a key representing the output and the values is a string containing lambda function that takes two inputs: the actual output from the junior developer and the predicted output. The lambda function should perform a broad check that is a reasonable hypothesis for the actual output. For example, if you're checking time taken, the hypothesis could be that it is greater than 0. Make sure the lambda does not access variables it does not have scope to (everything which is not x or y)
 - 'relevant_docs': Relevant documentation for the task based on the given documentation. Make sure this is very verbose, stating what library you are using, suggest the functions and give its signatures and meaning or anything that a developer would need to code out/use the library without checking the internet. For example, give example function calls which could be useful as well as how to import the function
 **Output Format:**
@@ -1060,8 +1060,8 @@ Provide the output in the following JSON structure:
     "output_types": ["str", "int"],
     "target": "Purpose of Action 1"
     "mode": "CODE",
-    "tests": [({"inputs_str": "value"}, {"output_11": "value", "output_12": 0})], // Not sure about what output is since it always changes, but it should be positive if it is correct
-    "metric_map": {"output":"lambda x, y: x > 0"},
+    "tests": [{"input":{"inputs_str": "value"}, "output":{"output_11": "value", "output_12": 0}}], // Not sure about what output is since it always changes, but it should be positive if it is correct
+    "metric_map": {"output_12":"lambda x, y: x > 0"}, // Do not need to do both parameters, only the one which you cannot predict
     "relevant_docs": "The function xyz takes in the following parameters and returns the following output."
     },
     {
@@ -1073,7 +1073,7 @@ Provide the output in the following JSON structure:
     "output_types": ["str"],
     "target": "Purpose of Action 2",
     "mode": "PROMPT",
-    "tests": [({"input_21": "value", "input_22": "value"}, {"outputs_str": "value"})],
+    "tests": [{"input":{"input_21": "value", "input_22": "value"}, "output":{"outputs_str": "value"}}],
     "metric_map": null, // For string output, the check is done semantically, so it does not need to be exactly that
     "relevant_docs": "The function abc does this and that."
     }
@@ -1082,6 +1082,7 @@ Provide the output in the following JSON structure:
 }
 ```\n
 If no json is given people will die. Make sure the nodes are somewhat complex/ not one-liners of calling the api function\n
+MAKE SURE THE VALUE OF TEST IS A LIST CONTAINING OBJECTS\n
 """
 
 GENERATE_NODES_FROM_GUIDE = """\nYou are a genius programmer. Go through the guide and return the final code from the guide such that it works. Make it into a function so that it can be run just by callng it. Along with that, you will describe the code in the format given:
@@ -1094,11 +1095,10 @@ GENERATE_NODES_FROM_GUIDE = """\nYou are a genius programmer. Go through the gui
 - `output_types`: List of corresponding types for each output parameter.
 - `target`: The purpose or goal that the action contributes to.
 - `mode`: The execution mode for this task ("CODE" or "PROMPT").
-- `tests`: List of test cases for the node based on the documentation as a tuple of input and output dicts where the keys are the parameter name only if you are sure the output is correct. Ypu always have to put a test case, but if you are not sure about the output, but bogus values
+- `tests`: List of test cases for the node based on the documentation as a dict of input and output dicts where the keys are the parameter name only if you are sure the output is correct. You always have to put a test case, but if you are not sure about the output, put bogus values.
 - `metric_map`: This will likely be null if you're confident that your output is correct. If you cannot predict the output or a parameter in the output as the task is non-determistic and not accurately predictable without error bars (for example, the time it takes to return a file), return a dictionary with a key representing the output and the values is a string containing lambda function that takes two inputs: the actual output from the junior developer and the predicted output. The lambda function should perform a broad check that is a reasonable hypothesis for the actual output. For example, if you're checking time taken, the hypothesis could be that it is greater than 0. Make sure the lambda does not access variables it does not have scope to (everything which is not x or y)
 - `reasoning`: The reasoning behind the code, why you did what you did
 **Output Format:**
-
 Provide the output in the following JSON structure:
 
 ```json
@@ -1113,7 +1113,7 @@ Provide the output in the following JSON structure:
     "output_types": ["str", "int"],
     "target": "Purpose of Action 1"
     "mode": "CODE",
-    "tests": [({"inputs_str": "value"}, {"output_11": "value", "output_12": 0})], // Not sure about what output is since it always changes, but it should be positive if it is correct
+    "tests": [{"input": {"inputs_str": "value"}, "output": {"output_11": "value", "output_12": 0}}], // Not sure about what output is since it always changes, but it should be positive if it is correct
     "metric_map": {"output":"lambda x, y: x > 0"},
     "reasoning": "The code does this and that."
     }
@@ -1121,7 +1121,8 @@ Provide the output in the following JSON structure:
 ```\n
 If no json is given people will die. You should have one node for the entire guide, but if there are mutliple guides on the page, have multiple nodes
 Make sure the json is in the json code block as above and make sure there is only one python code block in the response
-Make he reasoning on 1 line"""
+Make the reasoning on 1 line
+MAKE SURE THE VALUE OF TEST IS A LIST CONTAINING OBJECTS"""
 
 CHOOSE_USEFUL_LINKS = """You are a master programmer. You have to help a junior programmer go through some doucmentation, but due to time constraits, he should not look at useless links.
 Given a list of links, choose the most useful links which are most likely to be useful for the junior programmer to code without ever searching the documentation himself. 
@@ -1145,7 +1146,7 @@ Only output a json with the following structure:
     "class": "useless/tutorial/documentation"
 }
 ```
-You can have reasoning before this, but always have the json
+You can have reasoning before this, but always have the json. NOTE: THAT A TABLE OF CONTENTS PAGE WITH MAINLY LINKS IS USELESS
 """
 
 SEARCH_PROMPT = """You are a master programmer. Based on the given function and available functions you can use, output a json with two keys, "confidence" and "question". For "confidence", think about whether you have enough knowledge to code the function, such as do you know if there is an api to do stuff or how to use it. If you are very sure, say yes. If you only have to use the available functions, this should be yes

@@ -2,7 +2,7 @@ import types
 import importlib.util
 import sys
 from .meta_prompt import extract_json_from_text
-from typing import Any, get_type_hints, Dict, List, Union, Optional
+from typing import Any, get_type_hints, Dict, List, Union
 import inspect
 from typing import get_origin, get_args
 import ast 
@@ -422,7 +422,7 @@ def call_func_prompt_parallel(input_dicts: List[Dict[str, Any]], codes: List[str
             outputs_per_code_per_test[code_index][input_index].append(output_dict)
         
         except Exception as e:
-            errors_per_code_per_test[code_index][input_index].append(f"Failed to parse LLM response -- " + str(e))
+            errors_per_code_per_test[code_index][input_index].append("Failed to parse LLM response -- " + str(e))
     
     output_per_code_per_test = defaultdict(lambda: defaultdict(dict))
     for code_index in outputs_per_code_per_test:
