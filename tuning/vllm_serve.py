@@ -33,7 +33,8 @@ async def generate(prompts: list[str]):
 
 def run_server():
     global get_endpoint_response
-    model_name = "unsloth/Llama-3.2-1B-Instruct"
+    # model_name = "unsloth/Llama-3.2-1B-Instruct"
+    model_name = "unsloth/Meta-Llama-3.1-8B-Instruct"
     get_endpoint_response = get_batch_vllm_func(name = model_name)
     uvicorn.run(app, host="0.0.0.0", port=30000)
 
