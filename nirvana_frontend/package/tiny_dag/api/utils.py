@@ -141,7 +141,9 @@ def decide_xy_pos(source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET):
     # Decide Y position
     y_positions = [n["y"] for n in same_level_nodes]
     y_min, y_max = (
-        (min(y_positions), max(y_positions)) if len(y_positions) > 0 else (0, 0)
+        (min(y_positions), max(y_positions))
+        if len(y_positions) > 0
+        else (500 + Y_OFFSET, 500 - Y_OFFSET)
     )
 
     y_start = source["y"] if source_id is not None else 0
@@ -167,20 +169,28 @@ def add_nodes(nodes, edges):
         if source_id not in source_groups:
             source_groups[source_id] = []
         source_groups[source_id].append(node)
-
+    print(source_groups)
     # Collect node at same level
     for source_id, group_nodes in source_groups.items():
         for target_node in group_nodes:
-            same_level_node_ids = [
-                connection["target"]
-                for connection in graph_state["connections"]
-                if connection["source"] == source_id
-            ]
-            same_level_nodes = [
-                node
-                for node in graph_state["nodes"]
-                if node["id"] in same_level_node_ids
-            ]
+            if source_id is not None:
+                same_level_node_ids = [
+                    connection["target"]
+                    for connection in graph_state["connections"]
+                    if connection["source"] == source_id
+                ]
+                same_level_nodes = [
+                    node
+                    for node in graph_state["nodes"]
+                    if node["id"] in same_level_node_ids
+                ]
+            else:
+                targets = [
+                    connection["target"] for connection in graph_state["connections"]
+                ]
+                same_level_nodes = [
+                    node for node in graph_state["nodes"] if node["id"] not in targets
+                ]
             x_pos, y_pos = decide_xy_pos(
                 source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET
             )

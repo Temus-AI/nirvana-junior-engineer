@@ -23,20 +23,20 @@ class GraphStateManager:
     def _get_initial_state(self):
         return {
             "nodes": [
-                {
-                    "id": 1,
-                    "x": 300,
-                    "y": 300,
-                    "name": "Black Node",
-                    "target": "",
-                    "input": [],
-                    "output": [],
-                    "code": "",
-                    "fitness": 0.7,
-                    "reasoning": "",
-                    "inputTypes": [],
-                    "outputTypes": [],
-                }
+                #     {
+                #         "id": 1,
+                #         "x": 300,
+                #         "y": 300,
+                #         "name": "Black Node",
+                #         "target": "",
+                #         "input": [],
+                #         "output": [],
+                #         "code": "",
+                #         "fitness": 0.7,
+                #         "reasoning": "",
+                #         "inputTypes": [],
+                #         "outputTypes": [],
+                #     }
             ],
             "connections": [],
         }
