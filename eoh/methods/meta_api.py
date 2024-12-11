@@ -128,7 +128,7 @@ async def aget_content(link, client):
         return "", ""
 
 
-async def nodes_from_api(
+def nodes_from_api(
     api_name: str,
     max_links: int = None,
     fast_response: Optional[Callable] = get_openai_response,
@@ -137,6 +137,10 @@ async def nodes_from_api(
     creation_max_attempts: int = 3,
     node_max_attempts: int = 3,
 ):
+    import nest_asyncio
+
+    nest_asyncio.apply()
+
     limits = httpx.Limits(max_keepalive_connections=None, max_connections=None)
     client = httpx.AsyncClient(timeout=None, limits=limits)
     webpages = []

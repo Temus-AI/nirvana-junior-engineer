@@ -646,8 +646,14 @@ class EvolNode:
 
         if candidate == "maybe" or search_mode == 2:
             best_question = f"Given the task: {self.meta_prompt.task}, what is the best question in the list for searching in google?\nList:{questions}\nPut the index (starting from 0) of the best question in the list in curly brackets like this {{0}}."
-            response = self.get_response(best_question)
-            idx = int(re.findall(r"\{(.*)\}", response, re.DOTALL)[0])
+            responses = self.get_response([best_question] * 20)
+            idx = 0
+            for response in responses:
+                try:
+                    idx = int(re.findall(r"\{(.*)\}", response, re.DOTALL)[0])
+                    break
+                except Exception:
+                    continue
             links = [
                 link_object["link"]
                 for link_object in _search_google(questions[idx])["organic"]
@@ -682,13 +688,17 @@ class EvolNode:
         query_node: bool = True,
         timeout: bool = True,
         search: int = 0,
-        search_threshold: float = 0.5,
+        search_threshold: float = 1.0,
         search_batch_size: int = 5,
     ):
         """
         Evolve node and only accept structurally fit solutions
         Attempts multiple evolutions before returning the final output
         """
+        import nest_asyncio
+
+        nest_asyncio.apply()
+
         rest = 0
         count = 0
         if search:
