@@ -283,7 +283,7 @@ def nodes_from_api(
 
     if view_on_frontend:
         graph = get_graph_state()
-        max_idx = max([node["id"] for node in graph["nodes"]])
+        max_idx = max([node["id"] for node in graph["nodes"]], default=-1)
         frontend_nodes = []
         for idx, node in enumerate(doc_nodes, max_idx + 1):
             frontend_nodes.append(
@@ -295,7 +295,9 @@ def nodes_from_api(
                     "target": "",
                     "input": node[0].meta_prompt.inputs,
                     "output": node[0].meta_prompt.outputs,
-                    "code": node[0].evol.code,
+                    "code": "def generate_prompt(input):\n    return ''"
+                    if node[0].meta_prompt.mode == "prompt"
+                    else f"def {node[0].meta_prompt.func_name}({', '.join(node[0].meta_prompt.inputs)}):\n    pass",
                     "fitness": node[0].evol.fitness,
                     "reasoning": node[0].evol.reasoning,
                     "inputTypes": node[0].meta_prompt.input_types,
@@ -313,8 +315,10 @@ def nodes_from_api(
                     "target": "",
                     "input": node.meta_prompt.inputs,
                     "output": node.meta_prompt.outputs,
-                    "code": node.evol.code,
-                    "fitness": node.evol.fitness,
+                    "code": "def generate_prompt(input):\n    return ''"
+                    if node.meta_prompt.mode == "prompt"
+                    else f"def {node.meta_prompt.func_name}({', '.join(node.meta_prompt.inputs)}):\n    pass",
+                    "fitness": 0,
                     "reasoning": node.evol.reasoning,
                     "inputTypes": node.meta_prompt.input_types,
                     "outputTypes": node.meta_prompt.output_types,
