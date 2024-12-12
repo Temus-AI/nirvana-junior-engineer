@@ -2,13 +2,13 @@ import ast
 import json
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Callable, Optional, Union
 
 import networkx as nx
 
 
-class PromptMode(Enum):
+class PromptMode(StrEnum):
     CODE = "code"
     TOOL = "tool"
     PROMPT = "prompt"
@@ -1043,7 +1043,7 @@ GENERATE_NODES_FROM_DOCS = """\nYou are a genius programmer. Generate a JSON-sty
 - `mode`: The execution mode for this task ("CODE" or "PROMPT").
 - `tests`: List of test cases for the node based on the documentation as a dict of input and output dicts where the keys are the parameter name only if you are sure the output is correct. You always have to put a test case, but if you are not sure about the output, put bogus values.
 - `metric_map`: This will likely be null if you're confident that your output is correct. If you cannot predict the output or a parameter in the output as the task is non-determistic and not accurately predictable without error bars (for example, the time it takes to return a file), return a dictionary with a key representing the output and the values is a string containing lambda function that takes two inputs: the actual output from the junior developer and the predicted output. The lambda function should perform a broad check that is a reasonable hypothesis for the actual output. For example, if you're checking time taken, the hypothesis could be that it is greater than 0. Make sure the lambda does not access variables it does not have scope to (everything which is not x or y)
-- 'relevant_docs': Relevant documentation for the task based on the given documentation. Make sure this is very verbose, stating what library you are using, suggest the functions and give its signatures and meaning or anything that a developer would need to code out/use the library without checking the internet. For example, give example function calls which could be useful as well as how to import the function
+- 'relevant_docs': Relevant documentation for the task based on the given documentation. Make sure this is very verbose, **stating what library you are using**, suggest the functions and give its signatures and meaning or anything that a developer would need to code out/use the library without checking the internet. For example, give example function calls which could be useful as well as how to import the function
 **Output Format:**
 
 Provide the output in the following JSON structure:
@@ -1075,7 +1075,7 @@ Provide the output in the following JSON structure:
     "mode": "PROMPT",
     "tests": [{"input":{"input_21": "value", "input_22": "value"}, "output":{"outputs_str": "value"}}],
     "metric_map": null, // For string output, the check is done semantically, so it does not need to be exactly that
-    "relevant_docs": "The function abc does this and that."
+    "relevant_docs": "The function abc does this and that." // SPEND MOST OF YOUR TOKENS ON THIS. THIS IS THE MOST IMPORTANT. MENTION HOW TO IMPORT AND USE THE LIBRARY AND FUNCTION
     }
     // Add more nodes as needed
 ]

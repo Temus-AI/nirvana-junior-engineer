@@ -136,7 +136,7 @@ graph_manager = GraphStateManager()
 
 # Following while loop run forever, dialing between frontend and backend
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def wesocket_endpoint(websocket: WebSocket):
     try:
         print("[WS] Attempting to accept connection...")
         await websocket.accept()

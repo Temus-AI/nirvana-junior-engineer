@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 from langchain_community.document_transformers import Html2TextTransformer
 from langchain_core.documents import Document
+from tiny_dag import add_nodes, get_graph_state
 
 from .evolnode import QueryEngine
 from .llm import get_openai_response
@@ -136,6 +137,7 @@ def nodes_from_api(
     evol_method: str = "i1",
     creation_max_attempts: int = 3,
     node_max_attempts: int = 3,
+    view_on_frontend: bool = False,
 ):
     import nest_asyncio
 
@@ -145,13 +147,16 @@ def nodes_from_api(
     client = httpx.AsyncClient(timeout=None, limits=limits)
     webpages = []
     visit = set()
+    dependency_dict = {}
 
-    async def recursive_search(link, ref_url=None):
-        nonlocal webpages, visit, client
+    async def recursive_search(link, ref_url=None, parent=None):
+        nonlocal webpages, visit, dependency_dict, client
         content, url = await aget_content(link, client)
         if ref_url is None:
             ref_url = url
         if url and content:
+            if parent is not None:
+                dependency_dict[parent] = dependency_dict.get(parent, []) + [url]
             webpages.append((url, content))
             visit.add(url)
         soup = BeautifulSoup(content, "html.parser")
@@ -168,14 +173,16 @@ def nodes_from_api(
             ):
                 visit.add(new_link)
                 new_links.append(new_link)
-        await asyncio.gather(*[recursive_search(link, ref_url) for link in new_links])
+        await asyncio.gather(
+            *[recursive_search(new_link, ref_url, link) for new_link in new_links]
+        )
 
     link = _search_google(f"{api_name} python docs")["organic"][0]["link"]
-
     print("Scraping links")
     asyncio.run(recursive_search(link))
 
     asyncio.run(client.aclose())
+
     links, htmls = zip(*webpages)
 
     print("Choosing and preprocessing links")
@@ -219,7 +226,6 @@ def nodes_from_api(
         for _ in range(creation_max_attempts):
             response = slow_response(prompt)
             response = response if type(response) is str else response[0]
-            print(response)
             try:
                 node_dict = extract_json_from_text(response)["nodes"]
                 for node in node_dict:
@@ -271,4 +277,49 @@ def nodes_from_api(
         doc_nodes += nodes
     for node in doc_nodes:
         node[0].get_offspring(evol_method, feedback=node[1])
+
+    for node in guide_nodes:
+        node.evol._evaluate_fitness(custom_metric_map=node.evol.custom_metric_map)
+
+    if view_on_frontend:
+        graph = get_graph_state()
+        max_idx = max([node["id"] for node in graph["nodes"]])
+        frontend_nodes = []
+        for idx, node in enumerate(doc_nodes, max_idx + 1):
+            frontend_nodes.append(
+                {
+                    "id": idx,
+                    "x": 0,
+                    "y": 0,
+                    "name": " ".join(node[0].meta_prompt.func_name.split("_")).title(),
+                    "target": "",
+                    "input": node[0].meta_prompt.inputs,
+                    "output": node[0].meta_prompt.outputs,
+                    "code": node[0].evol.code,
+                    "fitness": node[0].evol.fitness,
+                    "reasoning": node[0].evol.reasoning,
+                    "inputTypes": node[0].meta_prompt.input_types,
+                    "outputTypes": node[0].meta_prompt.output_types,
+                }
+            )
+
+        for idx, node in enumerate(guide_nodes, idx + 1):
+            frontend_nodes.append(
+                {
+                    "id": idx,
+                    "x": 0,
+                    "y": 0,
+                    "name": " ".join(node.meta_prompt.func_name.split("_")).title(),
+                    "target": "",
+                    "input": node.meta_prompt.inputs,
+                    "output": node.meta_prompt.outputs,
+                    "code": node.evol.code,
+                    "fitness": node.evol.fitness,
+                    "reasoning": node.evol.reasoning,
+                    "inputTypes": node.meta_prompt.input_types,
+                    "outputTypes": node.meta_prompt.output_types,
+                }
+            )
+        add_nodes(frontend_nodes, [])
+
     return doc_nodes, guide_nodes

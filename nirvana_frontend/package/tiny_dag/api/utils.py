@@ -143,11 +143,11 @@ def decide_xy_pos(source_id, graph_state, same_level_nodes, X_OFFSET, Y_OFFSET):
     y_min, y_max = (
         (min(y_positions), max(y_positions))
         if len(y_positions) > 0
-        else (500 + Y_OFFSET, 500 - Y_OFFSET)
+        else (400 + Y_OFFSET, 400 - Y_OFFSET)
     )
 
     y_start = source["y"] if source_id is not None else 0
-    if abs(y_start - y_min) >= abs(y_start - y_max):
+    if abs(y_start - y_min) > abs(y_start - y_max):
         y_pos = y_max + Y_OFFSET
     else:
         y_pos = y_min - Y_OFFSET
@@ -169,7 +169,6 @@ def add_nodes(nodes, edges):
         if source_id not in source_groups:
             source_groups[source_id] = []
         source_groups[source_id].append(node)
-    print(source_groups)
     # Collect node at same level
     for source_id, group_nodes in source_groups.items():
         for target_node in group_nodes:
