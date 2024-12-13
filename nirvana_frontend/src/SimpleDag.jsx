@@ -1,36 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Node from './components/node';
+import Connection from './components/connection';
+import ChatBox from './components/chatbox';
+import { initialNodes, initialConnections } from './data/initialState.js';
+import { saveToTempFile } from './utils/fileUtils';
+import { chatWebSocket } from './utils/chatWebSocket.js';
+import { calculatePath, getScoreColor } from './utils/dagUtils.js';
 
 const SimpleDag = () => {
-  const [nodes, setNodes] = useState([
-    { 
-      id: 1, 
-      x: 300, 
-      y: 300, 
-      name: 'Node 1',
-      target: '',
-      input: [],
-      output: [],
-      code: '',
-      fitness: .7,
-      reasoning: '',
-      inputTypes: [],
-      outputTypes: [],
-    },
-    { 
-      id: 2, 
-      x: 700, 
-      y: 300, 
-      name: 'Node 2',
-      target: '',
-      input: [],
-      output: [],
-      code: '',
-      fitness: 0.0,
-      reasoning: '',
-      inputTypes: [],
-      outputTypes: [],
-    }
-  ]);
+  const [nodes, setNodes] = useState(initialNodes);
+  const [connections, setConnections] = useState(initialConnections);
   
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNode, setDraggedNode] = useState(null);
@@ -38,29 +17,19 @@ const SimpleDag = () => {
 
   const [editingNode, setEditingNode] = useState(null);
 
-  // Node dimensions
+  
   const nodeWidth = 160;
   const nodeHeight = 40;
   const cornerRadius = 8;
 
-  // Add new state for hover tracking
+
   const [hoveredNode, setHoveredNode] = useState(null);
 
-  // Initialize connections with Node 1 -> Node 2
-  const [connections, setConnections] = useState([
-    {
-      source: 1,  // Node 1's ID
-      target: 2   // Node 2's ID
-    }
-  ]);
-
-  // Add new state for pan and zoom
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1000, height: 600 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const svgRef = useRef(null);
 
-  // Add a window resize handler
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight
@@ -84,7 +53,7 @@ const SimpleDag = () => {
 
     window.addEventListener('resize', handleResize);
     
-    // Initial setup
+
     handleResize();
 
     return () => window.removeEventListener('resize', handleResize);
@@ -125,136 +94,71 @@ const SimpleDag = () => {
     if (isDragging && draggedNode) {
       const updatedNode = nodes.find(node => node.id === draggedNode.id);
       if (updatedNode && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
+        const stateData = {
+          type: "graph_update",
           nodes: nodes,
           connections: connections
-        }));
+        };
+        ws.send(JSON.stringify(stateData));
+      }
+    }
+    
+    if (isDrawingConnection && hoveredNode) {
+      const endNode = nodes.find(n => n.id === hoveredNode);
+      if (endNode) {
+        handleConnectionComplete(endNode);
       }
     }
     
     setIsDragging(false);
     setDraggedNode(null);
+    setIsDrawingConnection(false);
+    setConnectionStart(null);
   };
 
   const handleNodeClick = (e, node) => {
-    // Only show info box if we haven't been dragging
     if (!isDragging && !draggedNode) {
       const svgRect = svgRef.current.getBoundingClientRect();
       const scale = svgRect.width / viewBox.width;
       
-      // Calculate initial position
+
       let screenX = (node.x - viewBox.x) * scale + svgRect.left;
       let screenY = (node.y - viewBox.y) * scale + svgRect.top;
       
-      // Get viewport dimensions
+
       const viewportHeight = window.innerHeight;
       const viewportWidth = window.innerWidth;
       
-      // Chat bubble dimensions (approximate)
-      const bubbleWidth = 384; // w-96 = 24rem = 384px
-      const bubbleHeight = Math.min(viewportHeight * 0.8, 600); // max-h-[80vh]
-      const bottomPadding = 80; // Extra padding for buttons
+
+      const formWidth = 384;
+      const formHeight = Math.min(viewportHeight * 0.8, 600);
       
-      // Adjust position to keep bubble in viewport
-      if (screenX + bubbleWidth + 20 > viewportWidth) {
-        screenX = screenX - bubbleWidth - 40;
+
+      if (screenX + formWidth + 20 > viewportWidth) {
+        screenX = Math.max(20, screenX - formWidth - 40);
       }
       
-      if (screenY + bubbleHeight + bottomPadding > viewportHeight) {
-        screenY = Math.max(20, viewportHeight - bubbleHeight - bottomPadding);
-      }
-      
-      if (screenY < 20) {
-        screenY = 20;
+      if (screenY + formHeight > viewportHeight) {
+        screenY = Math.max(20, viewportHeight - formHeight - 20);
       }
       
       setEditingNode({
         ...node,
-        screenX: screenX,
-        screenY: screenY
+        screenX,
+        screenY
       });
     }
   };
 
-  const handleNodeUpdate = (nodeId, updatedNode) => {
-    // Update local state first
-    const updatedNodes = nodes.map(node => 
-        node.id === nodeId ? {...node, ...updatedNode} : node
-    );
-    setNodes(updatedNodes);
 
-    // Send complete state to backend
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            nodes: updatedNodes,
-            connections: connections  // Send current connections too
-        }));
-    }
-  };
-
-  // Calculate the path for the edge including the arrow
-  const calculatePath = (startNode, endNode) => {
-    const start = {
-      x: startNode.x + nodeWidth/2,
-      y: startNode.y
-    };
-    const end = {
-      x: endNode.x - nodeWidth/2,
-      y: endNode.y
-    };
-
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    
-    // Increase curve intensity based on distance
-    const offsetX = Math.min(Math.abs(dx) * 0.7, 150);
-    
-    // Add slight vertical offset for more natural curves
-    const verticalOffset = Math.min(Math.abs(dy) * 0.2, 30);
-    
-    const controlPoint1 = {
-      x: start.x + offsetX,
-      y: start.y + (dy > 0 ? verticalOffset : -verticalOffset)
-    };
-    const controlPoint2 = {
-      x: end.x - offsetX,
-      y: end.y + (dy > 0 ? -verticalOffset : verticalOffset)
-    };
-
-    return `M ${start.x},${start.y} 
-            C ${controlPoint1.x},${controlPoint1.y} 
-              ${controlPoint2.x},${controlPoint2.y} 
-              ${end.x},${end.y}`;
-  };
-
-  // Helper function to determine text color based on score
-  const getScoreColor = (score) => {
-    // Convert score from 0-1 to 0-100
-    const percentage = score * 100;
-    
-    if (percentage <= 50) {
-      // Red (#dc2626) to light red (#ef4444)
-      const redIntensity = Math.floor(220 + (percentage * 0.48));
-      return `rgb(${redIntensity}, ${Math.floor(38 + percentage)}, ${Math.floor(38 + percentage)})`;
-    } else {
-      // Yellow (#eab308) through light green (#22c55e) to dark green (#15803d)
-      if (percentage <= 75) {
-        // Yellow to light green (50-75%)
-        const ratio = (percentage - 50) / 25;
-        return `rgb(${Math.floor(234 - (ratio * 191))}, ${Math.floor(179 + (ratio * 18))}, ${Math.floor(8 + (ratio * 86))})`;
-      } else {
-        // Light green to dark green (75-100%)
-        const ratio = (percentage - 75) / 25;
-        return `rgb(${Math.floor(34 - (ratio * 13))}, ${Math.floor(197 - (ratio * 69))}, ${Math.floor(94 - (ratio * 33))})`;
-      }
-    }
-  };
-
-  // Modify handleAddNode to send the new node to backend
   const handleAddNode = (sourceNode) => {
-    const newNodeId = nodes.length + 1;
+    console.log('[Graph] Adding new node from source:', sourceNode);
+    
+    const maxId = Math.max(...nodes.map(node => node.id), 0);
+    const newNodeId = maxId + 1;
+    
     const newNode = {
-        id: newNodeId,
+        id: newNodeId,  
         x: sourceNode.x + 300,
         y: sourceNode.y,
         name: `Node ${newNodeId}`,
@@ -266,6 +170,7 @@ const SimpleDag = () => {
         inputTypes: [],
         outputTypes: [],
         fitness: 0.0,
+        isNewNode: true
     };
     
     const newConnection = {
@@ -273,22 +178,36 @@ const SimpleDag = () => {
         target: newNodeId
     };
     
-    // Update local state
+
     const updatedNodes = [...nodes, newNode];
     const updatedConnections = [...connections, newConnection];
     setNodes(updatedNodes);
     setConnections(updatedConnections);
 
-    // Send complete state to backend
+
+    const stateData = {
+        type: "graph_update",
+        nodes: updatedNodes,
+        connections: updatedConnections
+    };
+    
+    console.log('[Graph] Sending new state to backend:', stateData);
+    
+
+    saveToTempFile(stateData);
+    
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            nodes: updatedNodes,
-            connections: updatedConnections
-        }));
+        ws.send(JSON.stringify(stateData));
     }
+
+
+    setEditingNode({
+        ...newNode,
+        screenX: newNode.x,
+        screenY: newNode.y
+    });
   };
 
-  // Also need to send connection updates
   const handleConnectionUpdate = (newConnection) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -297,9 +216,8 @@ const SimpleDag = () => {
     }
   };
 
-  // Add pan handlers
+
   const handleSvgMouseDown = (e) => {
-    // Only start panning if it's a middle-click or space + left-click
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
       setStartPan({ x: e.clientX, y: e.clientY });
@@ -343,7 +261,6 @@ const SimpleDag = () => {
     }
     
     // Only handle zoom when not editing
-    e.preventDefault();
     const delta = e.deltaY;
     const scaleFactor = delta > 0 ? 1.1 : 0.9;
 
@@ -376,6 +293,8 @@ const SimpleDag = () => {
 
   // Add new handler for removing nodes
   const handleRemoveNode = (nodeId) => {
+    console.log('[Graph] Removing node:', nodeId);
+    
     // Update local state
     const updatedNodes = nodes.filter(node => node.id !== nodeId);
     const updatedConnections = connections.filter(conn => 
@@ -385,12 +304,48 @@ const SimpleDag = () => {
     setNodes(updatedNodes);
     setConnections(updatedConnections);
 
-    // Send complete state to backend
+    // Send complete state to backend with type
+    const stateData = {
+        type: "graph_update",
+        nodes: updatedNodes,
+        connections: updatedConnections
+    };
+
+    // Save to temp file
+    saveToTempFile(stateData);
+    
+    // Send to backend
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            nodes: updatedNodes,
-            connections: updatedConnections
-        }));
+        ws.send(JSON.stringify(stateData));
+        console.log('[Graph] Delete node state sent to backend');
+    }
+  };
+
+  // Add handleRemoveConnection function
+  const handleRemoveConnection = (source, target) => {
+    console.log('[Graph] Removing connection:', source, '->', target);
+    
+    // Update local state
+    const updatedConnections = connections.filter(conn => 
+        !(conn.source === source && conn.target === target)
+    );
+    
+    setConnections(updatedConnections);
+
+    // Send complete state to backend
+    const stateData = {
+        type: "graph_update",
+        nodes: nodes,
+        connections: updatedConnections
+    };
+
+    // Save to temp file
+    saveToTempFile(stateData);
+    
+    // Send to backend
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(stateData));
+        console.log('[Graph] Delete connection state sent to backend');
     }
   };
 
@@ -429,8 +384,35 @@ const SimpleDag = () => {
            point.y <= (node.y + nodeHeight/2 + HIT_DETECTION_BUFFER);
   };
 
-  // Add these state handlers at the top with other useState declarations
-  const [fileInput, setFileInput] = useState(null);
+  // Update the chat-related state and handlers
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+
+  // Add useEffect for chat WebSocket handling
+  useEffect(() => {
+    const handleChatMessage = (data) => {
+      console.log('[Chat] Message received:', data);
+      if (data.type === 'chat_message') {
+        setMessages(prev => [...prev, data.message]);
+      } else if (data.type === 'chat_history') {
+        setMessages(data.messages);
+      }
+    };
+
+    chatWebSocket.addMessageHandler(handleChatMessage);
+
+    return () => {
+      chatWebSocket.removeMessageHandler(handleChatMessage);
+    };
+  }, []);
+
+  // Update the ChatBox component render
+  <ChatBox 
+    messages={messages}
+    setMessages={setMessages}
+    newMessage={newMessage}
+    setNewMessage={setNewMessage}
+  />
 
   // Add this function to handle JSON file loading
   const handleFileUpload = (event) => {
@@ -460,28 +442,70 @@ const SimpleDag = () => {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    const websocket = new WebSocket('ws://localhost:8000/ws');
-    
-    websocket.onopen = () => {
-      console.log('Connected to Python backend');
-    };
-    
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.nodes && data.connections) {
-        setNodes(data.nodes);
-        setConnections(data.connections);
-      }
-    };
-    
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-    
-    setWs(websocket);
+    let websocket;
+    try {
+        websocket = new WebSocket('ws://localhost:8000/ws');
+        
+        websocket.onopen = async () => {
+            console.log('[Graph] Connected to Python backend');
+            
+            // Fetch initial state from backend
+            try {
+                const response = await fetch('http://localhost:8000/api/graph');
+                const data = await response.json();
+                if (data.nodes && data.nodes.length > 0) {
+                    setNodes(data.nodes);
+                    setConnections(data.connections || []);
+                    console.log('[Graph] Loaded saved state from backend');
+                } else {
+                    // Only use initialNodes if no saved state exists
+                    setNodes(initialNodes);
+                    setConnections(initialConnections);
+                    console.log('[Graph] No saved state found, using initial state');
+                }
+            } catch (error) {
+                console.error('[Graph] Error fetching initial state:', error);
+                // Fallback to initial state if fetch fails
+                setNodes(initialNodes);
+                setConnections(initialConnections);
+            }
+        };
+        
+        websocket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "graph_update" && data.nodes && data.connections) {
+                    // Only update if we receive non-empty data
+                    if (data.nodes.length > 0) {
+                        setNodes(data.nodes);
+                        setConnections(data.connections);
+                        console.log('[Graph] State updated from backend:', data);
+                    } else {
+                        console.log('[Graph] Received empty state, keeping current state');
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+        
+        websocket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+        
+        websocket.onclose = () => {
+            console.log('WebSocket connection closed');
+        };
+        
+        setWs(websocket);
+    } catch (error) {
+        console.error('Error creating WebSocket connection:', error);
+    }
     
     return () => {
-      websocket.close();
+        if (websocket) {
+            websocket.close();
+        }
     };
   }, []);
 
@@ -495,9 +519,119 @@ const SimpleDag = () => {
     setEditingNode(nodeToEdit);
   };
 
-  // Add this state near your other state declarations
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
+  const handleNodeSave = (nodeId, updatedNode) => {
+    console.log('Saving node in SimpleDag:', nodeId, updatedNode); // Debug log
+
+    const updatedNodes = nodes.map(node => 
+      node.id === nodeId ? updatedNode : node
+    );
+    
+    setNodes(updatedNodes);
+    
+    const stateData = {
+      type: "graph_update",
+      nodes: updatedNodes,
+      connections: connections
+    };
+    
+    console.log('Sending state update:', stateData); // Debug log
+    
+    // Save to temp file
+    saveToTempFile(stateData);
+    
+    // Send to backend
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(stateData));
+      console.log('State update sent to WebSocket'); // Debug log
+    } else {
+      console.warn('WebSocket not ready, update not sent'); // Debug log
+    }
+  };
+
+  // Update handleSave
+  const handleSave = () => {
+    if (!editingNode) return;
+    
+    console.log('[Graph] Saving node:', editingNode);
+
+    // Update nodes state
+    const updatedNodes = nodes.map(node => 
+      node.id === editingNode.id ? {...editingNode, isNewNode: false} : node
+    );
+    
+    setNodes(updatedNodes);
+    
+    // Send update to backend
+    const stateData = {
+      type: "graph_update",
+      nodes: updatedNodes,
+      connections: connections
+    };
+    
+    console.log('[Graph] Sending updated state to backend:', stateData);
+    
+    // Save to temp file
+    saveToTempFile(stateData);
+    
+    // Send to backend
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(stateData));
+    }
+    
+    // Close edit form
+    setEditingNode(null);
+  };
+
+  // Add a function to safely send WebSocket messages
+  const sendWebSocketMessage = (message) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(message));
+        console.log('[Graph WS] Sent message:', message);
+      } catch (error) {
+        console.error('[Graph WS] Error sending message:', error);
+      }
+    } else {
+      console.warn('[Graph WS] WebSocket not ready, message not sent');
+    }
+  };
+
+  // Add this function to handle connection completion
+  const handleConnectionComplete = (endNode) => {
+    if (connectionStart && endNode && connectionStart.id !== endNode.id) {
+      // Check if connection already exists
+      const connectionExists = connections.some(
+        conn => conn.source === connectionStart.id && conn.target === endNode.id
+      );
+
+      if (!connectionExists) {
+        const newConnection = {
+          source: connectionStart.id,
+          target: endNode.id
+        };
+
+        // Update local state
+        const updatedConnections = [...connections, newConnection];
+        setConnections(updatedConnections);
+
+        // Send to backend
+        const stateData = {
+          type: "graph_update",
+          nodes: nodes,
+          connections: updatedConnections
+        };
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(stateData));
+        }
+      }
+    }
+    
+    // Reset connection drawing state
+    setIsDrawingConnection(false);
+    setConnectionStart(null);
+    setTempConnectionEnd({ x: 0, y: 0 });
+  };
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -523,10 +657,14 @@ const SimpleDag = () => {
         viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
         preserveAspectRatio="xMidYMid meet"
         onMouseDown={handleSvgMouseDown}
-        onMouseMove={handleSvgMouseMove}
+        onMouseMove={(e) => {
+          handleMouseMove(e);
+          handleConnectionMove(e);
+        }}
         onMouseUp={handleSvgMouseUp}
         onMouseLeave={handleSvgMouseUp}
         onWheel={handleWheel}
+        style={{ touchAction: 'none' }}
       >
         <defs>
           <marker
@@ -588,28 +726,19 @@ const SimpleDag = () => {
         </defs>
 
         {/* Modified Edges - now using connections array */}
-        {connections.map((connection, index) => {
+        {connections.map((connection) => {
           const startNode = nodes.find(node => node.id === connection.source);
           const endNode = nodes.find(node => node.id === connection.target);
           if (startNode && endNode) {
-            const path = calculatePath(startNode, endNode);
             return (
-              <g key={`edge-${connection.source}-${connection.target}`}>
-                <path
-                  d={path}
-                  stroke="#94a3b8"
-                  strokeWidth="2"
-                  fill="none"
-                  markerEnd="url(#arrowhead)"
-                />
-                <circle r="3" fill="#3b82f6">
-                  <animateMotion
-                    dur="1.5s"
-                    repeatCount="indefinite"
-                    path={path}
-                  />
-                </circle>
-              </g>
+              <Connection 
+                key={`${connection.source}-${connection.target}`}
+                startNode={startNode}
+                endNode={endNode}
+                calculatePath={calculatePath}
+                nodeWidth={nodeWidth}
+                handleRemoveConnection={handleRemoveConnection}
+              />
             );
           }
           return null;
@@ -617,344 +746,157 @@ const SimpleDag = () => {
 
         {/* Nodes - Modified to include hover detection and plus button */}
         {nodes.map(node => (
-          <g 
+          <Node
             key={node.id}
-            onMouseDown={(e) => handleMouseDown(e, node)}
-            onClick={(e) => handleNodeClick(e, node)}
-            onMouseEnter={() => !isDrawingConnection && setHoveredNode(node.id)}
-            onMouseLeave={() => !isDrawingConnection && setHoveredNode(null)}
-            onMouseUp={(e) => {
-              if (isDrawingConnection && hoveredNode === node.id && connectionStart) {
-                e.stopPropagation();
-                const newConnection = {
-                  source: connectionStart.id,
-                  target: node.id
-                };
-                setConnections(prevConnections => [...prevConnections, newConnection]);
-                setIsDrawingConnection(false);
-                setConnectionStart(null);
-                setHoveredNode(null);
-              }
-            }}
-            style={{
-              transformOrigin: `${node.x}px ${node.y}px`,  // Set transform origin to node center
-              transform: `scale(${1/viewBox.scale})`,       // Apply inverse scale to counteract zoom
-            }}
-          >
-            {/* Node rectangle with highlight when hovered during connection */}
-            <rect
-              x={node.x - nodeWidth/2}
-              y={node.y - nodeHeight/2}
-              width={nodeWidth}
-              height={nodeHeight}
-              rx={cornerRadius}
-              fill="white"
-              stroke="url(#borderGradient)"
-              strokeWidth="1.5"
-              filter="url(#dropShadow)"
-              className={`transition-all duration-300 ${
-                isDrawingConnection && hoveredNode === node.id ? 'stroke-blue-500 stroke-2' : ''
-              }`}
-            />
-            
-            {/* Node name */}
-            <text
-              x={node.x}
-              y={node.y + 1}
-              className="text-sm fill-gray-700 font-bold"
-              textAnchor="middle"
-              dominantBaseline="middle"
-            >
-              {node.name}
-            </text>
-            
-            {/* Node status pill - moved outside and to bottom right */}
-            <rect
-              x={node.x + nodeWidth/4 - 1}  // Changed from nodeWidth*92/400
-              y={node.y + nodeHeight/2 + 1}      // Changed from nodeHeight*20/500
-              width="32"
-              height="22"
-              rx="10"
-              className="fill-white"
-              stroke={getScoreColor(node.fitness)}
-              strokeWidth="1.5"
-              style={{ 
-                transform: `scale(${1/viewBox.scale})`,
-                transformOrigin: `${node.x + nodeWidth/2 + 21}px ${node.y + nodeHeight/2 + 11}px`  // Updated transform origin
-              }}
-            />
-            <text
-              x={node.x + nodeWidth/3 + 1}  // Changed from nodeWidth/3
-              y={node.y + nodeHeight/2 + 13}  // Changed from nodeHeight*130/500
-              className="text-center font-bold"
-              fill={getScoreColor(node.fitness)}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={node.fitness === undefined || node.fitness === null || node.fitness === 0 ? "13" : "11"}
-              style={{ 
-                transform: `scale(${1/viewBox.scale})`,
-                transformOrigin: `${node.x + nodeWidth/2 + 21}px ${node.y + nodeHeight/2 + 11}px`,  // Updated transform origin
-                backgroundColor: 'transparent',
-                paintOrder: 'stroke',
-                userSelect: 'none'
-              }}
-            >
-              {node.fitness === undefined || node.fitness === null || node.fitness === 0 ? "🚧" : `${Math.round(node.fitness * 100)}%`}
-            </text>
-
-            {/* Control buttons - show on hover */}
-            {hoveredNode === node.id && !isDrawingConnection && (
-              <>
-                {/* Add node button (right) */}
-                <g
-                  transform={`translate(${node.x + nodeWidth/2 + 10}, ${node.y})`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddNode(node);
-                  }}
-                  className="cursor-pointer"
-                >
-                  <circle
-                    r="12"
-                    className="fill-white"
-                    stroke={getScoreColor(node.fitness)}
-                  />
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="text-gray-500 text-lg"
-                    fontSize="20"
-                  >
-                    +
-                  </text>
-                </g>
-
-                {/* Remove node button (×) */}
-                <g
-                  transform={`translate(${node.x - nodeWidth/4}, ${node.y + nodeHeight/2 + 10})`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveNode(node.id);
-                  }}
-                  className="cursor-pointer"
-                >
-                  <circle
-                    r="12"
-                    className="fill-white stroke-red-500"
-                  />
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="fill-red-500 text-lg"
-                    fontSize="20"
-                  >
-                    ×
-                  </text>
-                </g>
-
-                {/* Forward connection button (→) */}
-                <g
-                  transform={`translate(${node.x}, ${node.y + nodeHeight/2 + 10})`}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setIsDrawingConnection(true);
-                    setConnectionStart(node);
-                    setTempConnectionEnd({ x: node.x, y: node.y });
-                  }}
-                  className="cursor-crosshair"
-                >
-                  <circle
-                    r="12"
-                    className="fill-white stroke-blue-500"
-                  />
-                  <text
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="fill-blue-500 text-lg"
-                    fontSize="20"
-                  >
-                    →
-                  </text>
-                </g>
-              </>
-            )}
-          </g>
+            node={node}
+            nodeWidth={nodeWidth}
+            nodeHeight={nodeHeight}
+            cornerRadius={cornerRadius}
+            hoveredNode={hoveredNode}
+            isDrawingConnection={isDrawingConnection}
+            handleMouseDown={handleMouseDown}
+            handleNodeClick={handleNodeClick}
+            handleAddNode={handleAddNode}
+            handleRemoveNode={handleRemoveNode}
+            handleNodeSave={handleNodeSave}
+            getScoreColor={getScoreColor}
+            setHoveredNode={setHoveredNode}
+            setIsDrawingConnection={setIsDrawingConnection}
+            setConnectionStart={setConnectionStart}
+            setTempConnectionEnd={setTempConnectionEnd}
+            isNewNode={node.isNewNode}
+          />
         ))}
 
-        {/* Add visual feedback for the temporary connection */}
+        {/* Add temporary connection line */}
         {isDrawingConnection && connectionStart && (
           <path
-            d={`M ${tempConnectionEnd.x},${tempConnectionEnd.y} L ${connectionStart.x},${connectionStart.y}`}
-            stroke={hoveredNode ? "#3b82f6" : "#94a3b8"} // Blue when over valid target
+            d={`M ${connectionStart.x},${connectionStart.y} L ${tempConnectionEnd.x},${tempConnectionEnd.y}`}
+            stroke={hoveredNode ? "#3b82f6" : "#94a3b8"}
             strokeWidth="2"
             strokeDasharray="5,5"
             fill="none"
-            markerEnd="url(#arrowhead)"
           />
         )}
       </svg>
 
       {/* Chat Box - Show history on hover */}
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 bg-gradient-to-b from-white/80 to-gray-50/90 shadow-lg backdrop-blur-sm rounded-t-2xl group">
-        {/* Chat history - hidden by default, shown on group hover */}
-        <div className="max-h-40 overflow-y-auto p-3 space-y-2 hidden group-hover:block">
-          {messages.map((msg, index) => (
-            <div 
-              key={index} 
-              className="px-4 py-2 rounded-full bg-gradient-to-b from-white to-gray-50 text-sm text-gray-700 shadow-sm"
-              style={{
-                filter: 'drop-shadow(0 2px 3px rgba(107, 114, 128, 0.1))',
-              }}
-            >
-              {msg}
-            </div>
-          ))}
-        </div>
-        <div className="p-3">
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (newMessage.trim()) {
-                setMessages(prev => [...prev, newMessage]);
-                setNewMessage('');
-              }
-            }}
-            className="flex gap-2 items-center"
-          >
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 rounded-full px-6 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400"
-              style={{
-                background: 'linear-gradient(to right, #f8fafc, #f1f5f9, #f8fafc)',
-                boxShadow: 'inset 0 1px 2px rgba(160, 174, 192, 0.2)',
-                border: 'none',
-              }}
-            />
-            <button
-              type="submit"
-              className="p-2 w-10 h-10 flex items-center justify-center text-slate-600 rounded-full text-sm font-medium transition-all hover:bg-slate-100 active:scale-95"
-              style={{
-                background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
-                boxShadow: '0 2px 4px rgba(148, 163, 184, 0.1)',
-                border: 'none',
-              }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
+      <ChatBox 
+        messages={messages}
+        setMessages={setMessages}
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+      />
 
       {editingNode && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black bg-opacity-30" onClick={() => setEditingNode(null)} />
           
           <div 
-            className="absolute bg-white rounded-lg shadow-xl w-96 overflow-y-auto"
+            className="absolute bg-white rounded-lg shadow-xl w-96"
             style={{
               left: `${editingNode.screenX + 20}px`,
               top: `${editingNode.screenY}px`,
-              maxHeight: 'calc(100vh - 100px)'
+              maxHeight: '90vh',
             }}
           >
-            <div className="relative p-6 space-y-4">
-              <h2 className="text-xl font-bold mb-4">Edit Node</h2>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  type="text"
-                  value={editingNode.name}
-                  onChange={(e) => {
-                    // Update local state
-                    setEditingNode({...editingNode, name: e.target.value});
-                    
-                    // Send update to backend
-                    handleNodeUpdate(editingNode.id, { name: e.target.value});
-                  }}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
+            <div className="flex flex-col h-full">
+              {/* Scrollable Content Area */}
+              <div 
+                className="overflow-y-auto p-6" 
+                style={{ 
+                  maxHeight: 'calc(90vh - 70px)',
+                  overflowY: 'auto',
+                  overscrollBehavior: 'contain'
+                }}
+              >
+                <h2 className="text-xl font-bold mb-4">Edit Node</h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Name</label>
+                    <input
+                      type="text"
+                      value={editingNode.name}
+                      onChange={(e) => setEditingNode({...editingNode, name: e.target.value})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Target</label>
+                    <input
+                      type="text"
+                      value={editingNode.target}
+                      onChange={(e) => setEditingNode({...editingNode, target: e.target.value})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Code</label>
+                    <textarea
+                      value={editingNode.code}
+                      onChange={(e) => setEditingNode({...editingNode, code: e.target.value})}
+                      rows={4}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Reasoning</label>
+                    <textarea
+                      value={editingNode.reasoning}
+                      onChange={(e) => setEditingNode({...editingNode, reasoning: e.target.value})}
+                      rows={4}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Input (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(editingNode.input) ? editingNode.input.join(', ') : ''}
+                      onChange={(e) => setEditingNode({...editingNode, input: e.target.value.split(',').map(s => s.trim())})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Output (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(editingNode.output) ? editingNode.output.join(', ') : ''}
+                      onChange={(e) => setEditingNode({...editingNode, output: e.target.value.split(',').map(s => s.trim())})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Input Types (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(editingNode.inputTypes) ? editingNode.inputTypes.join(', ') : ''}
+                      onChange={(e) => setEditingNode({...editingNode, inputTypes: e.target.value.split(',').map(s => s.trim())})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Output Types (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={Array.isArray(editingNode.outputTypes) ? editingNode.outputTypes.join(', ') : ''}
+                      onChange={(e) => setEditingNode({...editingNode, outputTypes: e.target.value.split(',').map(s => s.trim())})}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Target</label>
-                <input
-                  type="text"
-                  value={editingNode.target}
-                  onChange={(e) => {
-                    setEditingNode({...editingNode, target: e.target.value});
-                    handleNodeUpdate(editingNode.id, { target: e.target.value});
-                  }}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Code</label>
-                <textarea
-                  value={editingNode.code}
-                  onChange={(e) => setEditingNode({...editingNode, code: e.target.value})}
-                  rows={4}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Reasoning</label>
-                <textarea
-                  value={editingNode.reasoning}
-                  onChange={(e) => setEditingNode({...editingNode, reasoning: e.target.value})}
-                  rows={4}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Input (comma-separated)</label>
-                <input
-                  type="text"
-                  value={editingNode.input.join(', ')}
-                  onChange={(e) => setEditingNode({...editingNode, input: e.target.value.split(',').map(s => s.trim())})}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Output (comma-separated)</label>
-                <input
-                  type="text"
-                  value={editingNode.output.join(', ')}
-                  onChange={(e) => setEditingNode({...editingNode, output: e.target.value.split(',').map(s => s.trim())})}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Input Types (comma-separated)</label>
-                <input
-                  type="text"
-                  value={editingNode.inputTypes.join(', ')}
-                  onChange={(e) => setEditingNode({...editingNode, inputTypes: e.target.value.split(',').map(s => s.trim())})}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Output Types (comma-separated)</label>
-                <input
-                  type="text"
-                  value={editingNode.outputTypes.join(', ')}
-                  onChange={(e) => setEditingNode({...editingNode, outputTypes: e.target.value.split(',').map(s => s.trim())})}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6 sticky bottom-0 bg-white py-3 border-t">
+              {/* Fixed Footer with Buttons */}
+              <div className="sticky bottom-0 bg-white px-6 py-3 border-t flex justify-end space-x-3 shadow-lg">
                 <button
                   onClick={() => setEditingNode(null)}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -962,38 +904,7 @@ const SimpleDag = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.preventDefault(); // Prevent any default form submission
-                    console.log("Save button clicked"); // Debug log
-                    
-                    const nodeUpdate = {
-                      id: editingNode.id,
-                      name: editingNode.name,
-                      target: editingNode.target,
-                      code: editingNode.code,
-                      reasoning: editingNode.reasoning,
-                      input: editingNode.input,
-                      output: editingNode.output,
-                      inputTypes: editingNode.inputTypes,
-                      outputTypes: editingNode.outputTypes,
-                      x: editingNode.x,
-                      y: editingNode.y,
-                      fitness: editingNode.fitness
-                    };
-                    
-                    // Send update to backend
-                    handleNodeUpdate(editingNode.id, nodeUpdate);
-                    
-                    // Update local state
-                    setNodes(prevNodes => 
-                      prevNodes.map(node => 
-                        node.id === editingNode.id ? {...node, ...nodeUpdate} : node
-                      )
-                    );
-                    
-                    // Close the edit form
-                    setEditingNode(null);
-                  }}
+                  onClick={handleSave}
                   className="px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700"
                 >
                   Save

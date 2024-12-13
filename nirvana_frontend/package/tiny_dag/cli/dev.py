@@ -1,42 +1,54 @@
 import os
-import time
-import threading
-import webbrowser
 from honcho.manager import Manager
+from pathlib import Path
 
-def open_browser():
-    """Open browser after a short delay with specific window size"""
-    time.sleep(3)
-    # On macOS, Chrome accepts JavaScript to set window size
-    chrome_path = 'open -a "Google Chrome" %s --args --window-size=1200,800 --window-position=100,100'
-    webbrowser.get(chrome_path).open('http://localhost:5173')
-    
 def run_frontend():
-    os.chdir('src')
-    os.system('npm install && npm run dev')
+    try:
+
+        current_file = Path(__file__).resolve()
+        print(f"Current file location: {current_file}")
+        
+        project_root = current_file.parents[4]
+        print(f"Project root: {project_root}")
+        
+        frontend_dir = project_root / "nirvana_frontend" / "src"
+        print(f"Frontend directory: {frontend_dir}")
+        
+        if not frontend_dir.exists():
+            print(f"ERROR: Frontend directory does not exist: {frontend_dir}")
+            return
+        
+
+        os.chdir(frontend_dir)
+        print(f"Changed directory to: {os.getcwd()}")
+        
+        os.system('npm install && npm run dev -- --host 0.0.0.0')
+    except Exception as e:
+        print(f"Error in run_frontend: {str(e)}")
 
 def run_dev():
-    # Set unbuffered output before creating manager
-    os.environ['PYTHONUNBUFFERED'] = '1'
-    
-    manager = Manager()
-    
-    # Start frontend first and launch browser
-    manager.add_process(
-        'frontend', 
-        'cd src && npm install && npm run dev'
-    )
-    
-    # Start browser in a separate thread
-    threading.Thread(target=open_browser, daemon=True).start()
-    
-    # Add backend without delay
-    manager.add_process(
-        'backend', 
-        'tiny_dag_backend'
-    )
-    
-    manager.loop()
+    try:
+        os.environ['PYTHONUNBUFFERED'] = '1'
+        
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parents[4]
+        frontend_dir = project_root / "nirvana_frontend" / "src"
+        
+        print(f"Starting manager with paths:")
+        print(f"Project root: {project_root}")
+        print(f"Frontend dir: {frontend_dir}")
+        
+        manager = Manager()
+        
+        frontend_cmd = f'cd {frontend_dir} && npm install && npm run dev -- --host 0.0.0.0'
+        print(f"Frontend command: {frontend_cmd}")
+        
+        manager.add_process('frontend', frontend_cmd)
+        manager.add_process('backend', 'tiny_dag_backend')
+        
+        manager.loop()
+    except Exception as e:
+        print(f"Error in run_dev: {str(e)}")
 
 if __name__ == "__main__":
     run_dev()

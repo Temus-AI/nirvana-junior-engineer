@@ -92,3 +92,11 @@ cython_debug/
 
 # Thumbnails
 Thumbs.db
+*/.env
+**/.devcontainer
+**/_build
+**/_dist
+**/_venv
+**/_env
+**/__pycache__
+**/tmp

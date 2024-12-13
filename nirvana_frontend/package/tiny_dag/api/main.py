@@ -1,6 +1,19 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pathlib import Path
+import os
+import json
+from datetime import datetime
+from tiny_dag.api.chat_manager import ChatManager
+from tiny_dag.api.datatypes import NodeData, EdgeData
+from tiny_dag.api.graph_manager import GraphStateManager
+
+TEMP_DIR_ = Path(__file__).parent / 'tmp'
+TEMP_DIR_.mkdir(exist_ok=True)
+TEMP_DIR = TEMP_DIR_ / 'node_request'
+TEMP_DIR.mkdir(exist_ok=True)
+GRAPH_MANAGER = GraphStateManager()
+CHAT_MANAGER = ChatManager()
 
 app = FastAPI()
 
@@ -12,237 +25,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Ready to slot this class into library file
 # - Where do I put the util functions?
-class GraphStateManager:
-    def __init__(self):
-        self._state = self._get_initial_state()
-        self._websocket_connections = set()  # Track active connections
-
-    def _get_initial_state(self):
-        return {
-            "nodes": [
-                #     {
-                #         "id": 1,
-                #         "x": 300,
-                #         "y": 300,
-                #         "name": "Black Node",
-                #         "target": "",
-                #         "input": [],
-                #         "output": [],
-                #         "code": "",
-                #         "fitness": 0.7,
-                #         "reasoning": "",
-                #         "inputTypes": [],
-                #         "outputTypes": [],
-                #     }
-            ],
-            "connections": [],
-        }
-
-    async def broadcast_state(self):
-        """Broadcast current state to all connected websockets"""
-        message = {
-            "type": "graph_update",  # Logging purpose?
-            "nodes": self._state["nodes"],
-            "connections": self._state["connections"],
-        }
-        # Broadcast to all connected clients
-        for websocket in self._websocket_connections:
-            try:
-                await websocket.send_json(message)
-            except Exception:
-                print("Temporary connection issue encoutered, redialing ...")
-                continue
-
-    def update_state(self, data):
-        """Update state and trigger broadcast - can be called from notebook"""
-        if "nodes" in data:
-            self._state["nodes"] = data["nodes"]
-        if "connections" in data:
-            self._state["connections"] = data["connections"]
-
-        # Return the current state for notebook use
-        return self._state
-
-    def get_state(self):
-        """Get current state - for notebook use"""
-        return self._state.copy()
-
-    def add_node(self, node_data: dict):
-        # check if the node id exist, add if it does not
-        if any(node["id"] == node_data["id"] for node in self._state["nodes"]):
-            raise HTTPException(
-                status_code=400, detail=f"Node with id {node_data['id']} already exists"
-            )
-        self._state["nodes"].append(node_data)
-        return self._state
-
-    def add_edge(self, edge_data: dict):
-        # Check if source node exists
-        if not any(node["id"] == edge_data["source"] for node in self._state["nodes"]):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Source node {edge_data['source']} does not exist",
-            )
-
-        # Check if target node exists
-        if not any(node["id"] == edge_data["target"] for node in self._state["nodes"]):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Target node {edge_data['target']} does not exist",
-            )
-
-        # Check for duplicate edge (same source and target)
-        if any(
-            edge["source"] == edge_data["source"]
-            and edge["target"] == edge_data["target"]
-            for edge in self._state["connections"]
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Edge from node {edge_data['source']} to {edge_data['target']} already exists",
-            )
-
-        self._state["connections"].append(edge_data)
-        return self._state
-
-    def remove_node(self, node_id: int):
-        self._state["nodes"] = [
-            node for node in self._state["nodes"] if node["id"] != node_id
-        ]
-        return self._state
-
-    def remove_edge(self, source: int, target: int):
-        self._state["connections"] = [
-            edge
-            for edge in self._state["connections"]
-            if not (edge["source"] == source and edge["target"] == target)
-        ]
-        return self._state
-
-    def update_node(self, node_id: int, node_data: dict):
-        for node in self._state["nodes"]:
-            if node["id"] == node_id:
-                node.update(node_data)
-                break
-        return self._state
-
-
-# Global Instance :: Key value circled between frontend and backend
-graph_manager = GraphStateManager()
-
-
-# Following while loop run forever, dialing between frontend and backend
 @app.websocket("/ws")
 async def wesocket_endpoint(websocket: WebSocket):
     try:
-        print("[WS] Attempting to accept connection...")
         await websocket.accept()
-        graph_manager._websocket_connections.add(websocket)
-        print(
-            f"[WS] New connection opened. Total connections: {len(graph_manager._websocket_connections)}"
-        )
-
-        # Send initial state
-        print("[WS] Sending initial state...")
-        initial_state = {
-            "type": "graph_update",
-            "nodes": graph_manager._state["nodes"],
-            "connections": graph_manager._state["connections"],
-        }
-        print(f"[WS] Initial state content: {initial_state}")
-        await websocket.send_json(initial_state)
-        print("[WS] Initial state sent successfully")
-
+        GRAPH_MANAGER._websocket_connections.add(websocket)
         while True:
             try:
-                print("[WS] Waiting for message...")
                 data = await websocket.receive_json()
-                print(f"[WS] Received data: {data}")
+                print(f"[Graph WS] Received data: {data}")
 
-                print("[WS] Updating state...")
-                graph_manager.update_state(data)
+                if data.get("type") == "graph_update":
+                    if "nodes" in data and "connections" in data:
+                        GRAPH_MANAGER.update_state(data)
+                        await GRAPH_MANAGER.broadcast_state()
+                        print("[Graph WS] State updated and broadcast")
+                    else:
+                        print("[Graph WS] Invalid graph update format")
+                else:
+                    print(f"[Graph WS] Unknown message type: {data.get('type')}")
 
-                print("[WS] Broadcasting updated state...")
-                await graph_manager.broadcast_state()
-                print("[WS] Broadcast complete")
-
-            except WebSocketDisconnect as e:
-                print(
-                    f"[WS] Client disconnected with WebSocketDisconnect. Code: {e.code}"
-                )
+            except WebSocketDisconnect:
                 break
-
             except Exception as e:
-                print(f"[WS] Error occurred: {str(e)}")
-                print(f"[WS] Error type: {type(e)}")
-                print(f"[WS] Error details: {e.__dict__}")
+                print(f"[Graph WS] Error: {str(e)}")
                 break
-
-    except Exception:
-        print("[WS] Connection setup error ...")
-        pass
 
     finally:
-        graph_manager._websocket_connections.discard(websocket)
-        print(
-            f"[WS] Connection cleaned up. Remaining connections: {len(graph_manager._websocket_connections)}"
-        )
-
-
-# For the backend program to twist the values with simple api and forget about async stuff
-
-
-class NodeData(BaseModel):
-    id: int
-    x: float
-    y: float
-    name: str
-    target: str = ""
-    input: list = []
-    output: list = []
-    code: str = ""
-    fitness: float = 0.7
-    reasoning: str = ""
-    inputTypes: list = []
-    outputTypes: list = []
-
-
-class EdgeData(BaseModel):
-    source: int
-    target: int
-
+        GRAPH_MANAGER._websocket_connections.discard(websocket)
 
 # Add these new endpoints
 @app.get("/api/graph")
 def get_graph():
     """Get current graph state"""
-    return graph_manager.get_state()
+    return GRAPH_MANAGER.get_state()
 
 
 @app.post("/api/nodes")
 async def add_node(node: NodeData):
     """Add a new node and broadcast update"""
-    graph_manager.add_node(node.dict())
-    await graph_manager.broadcast_state()
+    GRAPH_MANAGER.add_node(node.dict())
+    await GRAPH_MANAGER.broadcast_state()
     return {"status": "success", "node": node}
 
 
 @app.put("/api/nodes/{node_id}")
 async def update_node(node_id: int, node: NodeData):
     """Update existing node and broadcast"""
-    graph_manager.update_node(node_id, node.dict())
-    await graph_manager.broadcast_state()
+    GRAPH_MANAGER.update_node(node_id, node.dict())
+    await GRAPH_MANAGER.broadcast_state()
     return {"status": "success", "node": node}
 
 
 @app.delete("/api/nodes/{node_id}")
 async def delete_node(node_id: int):
     """Delete node and broadcast update"""
-    graph_manager.remove_node(node_id)
-    await graph_manager.broadcast_state()
+    GRAPH_MANAGER.remove_node(node_id)
+    await GRAPH_MANAGER.broadcast_state()
     return {"status": "success"}
 
 
@@ -252,13 +93,13 @@ async def add_edge(edge: EdgeData):
     try:
         print(f"Received edge request: {edge.dict()}")
         # Check if nodes exist
-        state = graph_manager.get_state()
+        state = GRAPH_MANAGER.get_state()
         node_ids = [node["id"] for node in state["nodes"]]
         print(f"Existing node IDs: {node_ids}")
         print(f"Looking for source: {edge.source}, target: {edge.target}")
 
-        result = graph_manager.add_edge(edge.dict())
-        await graph_manager.broadcast_state()
+        result = GRAPH_MANAGER.add_edge(edge.dict())
+        await GRAPH_MANAGER.broadcast_state()
         return {"status": "success", "edge": edge}
     except Exception as e:
         print(f"Error adding edge: {str(e)}")
@@ -268,8 +109,8 @@ async def add_edge(edge: EdgeData):
 @app.delete("/api/edges/{source}/{target}")
 async def delete_edge(source: int, target: int):
     """Delete edge and broadcast update"""
-    graph_manager.remove_edge(source, target)
-    await graph_manager.broadcast_state()
+    GRAPH_MANAGER.remove_edge(source, target)
+    await GRAPH_MANAGER.broadcast_state()
     return {"status": "success"}
 
 
@@ -277,11 +118,47 @@ async def delete_edge(source: int, target: int):
 async def update_graph_state(data: dict):
     """Update entire graph state"""
     try:
-        graph_manager.update_state(data)
-        await graph_manager.broadcast_state()
+        GRAPH_MANAGER.update_state(data)
+        await GRAPH_MANAGER.broadcast_state()
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/save-temp-file")
+async def save_temp_file(request: dict):
+    filename = request["filename"]
+    data = request["data"]
+    
+    file_path = os.path.join(TEMP_DIR, filename)
+    
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    return {"message": f"File saved: {filename}"}
+
+
+@app.websocket("/ws/chat")
+async def chat_websocket_endpoint(websocket: WebSocket):
+    try:
+        await websocket.accept()
+        chat_manager = ChatManager()
+        chat_manager._websocket_connections.add(websocket)
+        await chat_manager.send_history(websocket)
+
+        while True:
+            try:
+                data = await websocket.receive_json()
+                if data.get("type") == "chat_message":
+                    message = data.get("message")
+                    if message:
+                        await chat_manager.process_message(message, websocket)
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                print(f"[Chat] Error: {str(e)}")
+                break
+    finally:
+        chat_manager._websocket_connections.discard(websocket)
 
 
 def run_server():
@@ -289,20 +166,18 @@ def run_server():
 
     import uvicorn
 
-    # Configure logging to be less verbose
-    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.asgi").setLevel(logging.WARNING)
-
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("chat_websocket")
     uvicorn.run(
         "tiny_dag.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="warning",  # Changed from debug to warning
+        reload_includes=["**/tiny_dag/**/*.py"],
+        reload_excludes=["**/node_modules/**"],
+        log_level="info",
         workers=1,
     )
-
 
 if __name__ == "__main__":
     run_server()
