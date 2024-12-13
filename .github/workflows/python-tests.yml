@@ -38,9 +38,8 @@ jobs:
     - name: Run tests with pytest
       run: |
         pytest --cov=./ --cov-report=xml --cov-fail-under=20
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: true
+    # - name: Upload coverage reports
+    #   uses: codecov/codecov-action@v3
+    #   with:
+    #     file: ./coverage.xml
+    #     fail_ci_if_error: true
