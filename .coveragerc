@@ -1,0 +1,6 @@
+[run]
+source = nirvana_frontend
+omit =
+    */tests/*
+    setup.py
+    */setup.py
