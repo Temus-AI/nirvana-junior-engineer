@@ -129,8 +129,8 @@ async def aget_content(link, client):
         return "", ""
 
 
-def nodes_from_api(
-    api_name: str,
+def nodes_from_library(
+    library_name: str,
     max_links: int = None,
     fast_response: Optional[Callable] = get_openai_response,
     slow_response: Optional[Callable] = get_openai_response,
@@ -177,7 +177,7 @@ def nodes_from_api(
             *[recursive_search(new_link, ref_url, link) for new_link in new_links]
         )
 
-    link = _search_google(f"{api_name} python docs")["organic"][0]["link"]
+    link = _search_google(f"{library_name} python docs")["organic"][0]["link"]
     print("Scraping links")
     asyncio.run(recursive_search(link))
 
