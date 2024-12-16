@@ -483,6 +483,15 @@ class EvolNode:
             return responses[0]
         else:
             return responses
+        
+    def switch_engine(self, get_engine_response: Callable):
+        """
+        Switch the LLM engine used for generating responses.
+        
+        Args:
+            get_engine_response (Callable): New response generation function to use
+        """
+        self._get_response = get_engine_response
 
     def _get_extend_test_cases_response(self, num_cases: int = 1, feedback: str = ""):
         if feedback != "":
