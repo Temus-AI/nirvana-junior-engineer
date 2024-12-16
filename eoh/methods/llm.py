@@ -300,8 +300,7 @@ except ImportError:
             return get_openai_response(*args, **kwargs)
 
     # Just write a dummy VLLM class for Mac instance here
-    print("Could not load vllm class, check CUDA support and GPU RAM size")
-
+    print("🥤 vLLM not available - running in fallback mode without GPU/CUDA")
 
 def fold_vllm_response_func(name: str = "") -> Callable:
     model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name)
