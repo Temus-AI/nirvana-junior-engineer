@@ -554,7 +554,10 @@ def get_vllm_endpoint_func(
     # some initial call to warm up the server
     print(":: Sending warmup message to initialize the server ...")
     warmup_prompt = ["This is a warmup prompt to initialize the server."]
-    get_endpoint_response(warmup_prompt)
-    print(":: Server initialized successfully!")
+    temp_responses = get_endpoint_response(warmup_prompt)
+    if temp_responses != []: 
+        print(":: Server initialized sucessfully!")
+    else:
+        print(":: Server not initilized!")
 
     return get_endpoint_response
