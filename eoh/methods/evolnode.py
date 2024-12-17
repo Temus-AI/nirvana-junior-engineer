@@ -483,11 +483,11 @@ class EvolNode:
             return responses[0]
         else:
             return responses
-        
+
     def switch_engine(self, get_engine_response: Callable):
         """
         Switch the LLM engine used for generating responses.
-        
+
         Args:
             get_engine_response (Callable): New response generation function to use
         """
@@ -621,7 +621,7 @@ class EvolNode:
         return reasonings, codes
 
     async def get_search_text(self, batch_size: int, search_mode: int) -> str:
-        from .meta_api import _search_google
+        from .meta_library import _search_google
 
         prompt_content = (
             f"{self.relevant_node_desc}\n{self.meta_prompt.to_dict()}\n" + SEARCH_PROMPT

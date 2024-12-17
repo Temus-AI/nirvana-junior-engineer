@@ -1158,8 +1158,8 @@ Here is the structure of the json:
     "confidence": "yes/maybe",
     "question": "search query"/null
 }
-MAKE SURE THE QUESTION IS IN ONE LINE and you cannot have questions about the available functions
 ```
+MAKE SURE THE QUESTION IS IN ONE LINE and you cannot have questions about the available functions
 """
 
 SEARCH_SUMMARISATION_PROMPT = """You are the best programmer.
@@ -1172,3 +1172,15 @@ SEARCH_SUMMARISATION_PROMPT = """You are the best programmer.
     e. Explore any significant implications or conclusions. 
 3.) Answer all of your generated questions one-by-one in detail. It is recommended to put some code as well. 
 Only give the questions and answers with code if there is code, nothing else"""  # noqa: E501
+
+DOCS_TYPE_CLASSIFIER = """You are a master documentation creator. You will look at the links of the main page of the documentation and based on sections such as tutorials and guides,
+classify the documentation into two categories. domain if the link structures for subsections of documentation such as guides have the same domain but different starting subdirectory.  full is when the tutorial and guide links have the starting subdirectory as the main link given. 
+Example: https://www.tensorflow.org/api_docs, https://www.tensorflow.org/api_docs/cc and https://www.tensorflow.org/tutorials are domain. https://langchain-ai.github.io/langgraph/, https://langchain-ai.github.io/langgraphjs/ and https://langchain-ai.github.io/langgraph/tutorials/ are full
+Note: If there are other parts of documentation, like for different libraries but same domain, they should be classified as different full so as to not go to the other library documentation. The same is for different programming languages if the tutorial has the same starting subdirectory, put full. If instead tutorial and other programming language do not have same starting subdirectory, put domain
+Here is the structure of the json:
+```json
+{
+    "class": "domain/full",
+}
+```
+"""

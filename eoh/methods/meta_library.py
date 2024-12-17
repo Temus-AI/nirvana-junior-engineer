@@ -17,6 +17,7 @@ from .evolnode import QueryEngine
 from .llm import get_openai_response
 from .meta_prompt import (
     CHOOSE_USEFUL_LINKS,
+    DOCS_TYPE_CLASSIFIER,
     GENERATE_NODES_FROM_DOCS,
     GENERATE_NODES_FROM_GUIDE,
     PAGE_CLASSIFIER,
@@ -129,8 +130,8 @@ async def aget_content(link, client):
         return "", ""
 
 
-def nodes_from_api(
-    api_name: str,
+def nodes_from_library(
+    library_name: str,
     max_links: int = None,
     fast_response: Optional[Callable] = get_openai_response,
     slow_response: Optional[Callable] = get_openai_response,
@@ -152,13 +153,31 @@ def nodes_from_api(
     async def recursive_search(link, ref_url=None, parent=None):
         nonlocal webpages, visit, dependency_dict, client
         content, url = await aget_content(link, client)
+
         if ref_url is None:
-            ref_url = url
+            nonlocal fast_response
+            temp_url = url.split("index.html")[0]
+            soup = BeautifulSoup(content, "html.parser")
+            links = soup.find_all("a", href=True)
+            prompt = [DOCS_TYPE_CLASSIFIER + f"\nLinks: {links}\nMain Link: {temp_url}"]
+            responses = fast_response([prompt] * 100)
+            for response in responses:
+                try:
+                    classification = extract_json_from_text(response)["class"]
+                    break
+                except Exception:
+                    continue
+            ref_url = (
+                temp_url
+                if classification == "full"
+                else urllib.parse.urlparse(temp_url).netloc
+            )
+
         if url and content:
             if parent is not None:
                 dependency_dict[parent] = dependency_dict.get(parent, []) + [url]
             webpages.append((url, content))
-            visit.add(url)
+            visit.update([url, url[:-1], url.split("index.html")[0]])
         soup = BeautifulSoup(content, "html.parser")
         new_links = []
         for a in soup.find_all("a", href=True):
@@ -168,7 +187,6 @@ def nodes_from_api(
             if (
                 ref_url in new_link
                 and new_link not in visit
-                and new_link + "/" not in visit
                 and parse.scheme in ["http", "https"]
             ):
                 visit.add(new_link)
@@ -177,7 +195,7 @@ def nodes_from_api(
             *[recursive_search(new_link, ref_url, link) for new_link in new_links]
         )
 
-    link = _search_google(f"{api_name} python docs")["organic"][0]["link"]
+    link = _search_google(f"{library_name} python docs")["organic"][0]["link"]
     print("Scraping links")
     asyncio.run(recursive_search(link))
 
@@ -190,7 +208,7 @@ def nodes_from_api(
     if max_links is not None:
         prompt += f"\nOnly choose maximum {max_links} links as the junior developer does not have time or people will die. Only choose the most useful links."
     prompt += f"\nLinks: {links}"
-    responses = fast_response([prompt] * 20)
+    responses = fast_response([prompt] * 100)
     for response in responses:
         try:
             indexes = extract_json_from_text(response)["links"]
@@ -208,7 +226,7 @@ def nodes_from_api(
     print("Classifying links and extracting nodes")
     for text in texts:
         prompt = text + PAGE_CLASSIFIER
-        responses = fast_response([prompt] * 30)
+        responses = fast_response([prompt] * 100)
         classification = "useless"
         for response in responses:
             try:
