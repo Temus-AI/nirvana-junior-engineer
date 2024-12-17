@@ -33,4 +33,4 @@ pip install --no-cache-dir vllm jupyterlab
 # Install pyreft
 pip install git+https://github.com/stanfordnlp/pyreft.git
 
-pip install --upgrade --force-reinstall numpy
+pip install --force-reinstall "numpy<2.0"

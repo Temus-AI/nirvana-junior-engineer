@@ -204,6 +204,7 @@ def get_claude_response(
 
 try:
     from vllm import LLM, SamplingParams
+    from vllm.sampling_params import GuidedDecodingParams
 
     class VLLM:
         def __init__(
@@ -253,6 +254,7 @@ try:
         def completions(
             self,
             prompts: List[str],
+            grammar: Optional[str] = None, # fixed grammar for current batch
             use_tqdm: bool = True,
             **kwargs: Union[int, float, str],
         ) -> List[str]:
@@ -260,10 +262,22 @@ try:
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
 
+            # Store original params
+            original_params = self.params
+
+            if grammar:
+                guided_decoding_params = GuidedDecodingParams(grammar=grammar)
+                self.params = guided_decoding_params
+            
             outputs = self.model.generate(
                 formatted_prompts, self.params, use_tqdm=use_tqdm
             )
+            
+            # Reset params back to original
+            self.params = original_params
+            
             outputs = [output.outputs[0].text for output in outputs]
+            
             return outputs
 
         def generate(
@@ -275,6 +289,7 @@ try:
             formatted_prompts = [
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
+            
             return self.model.generate(
                 formatted_prompts, self.params, use_tqdm=use_tqdm
             )
