@@ -247,7 +247,7 @@ try:
                 max_model_len=max_model_len,
             )
 
-            
+            self.max_tokens = max_tokens
             self.params = SamplingParams(**kwargs)
             self.params.max_tokens = self.max_tokens
 
