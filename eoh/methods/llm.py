@@ -12,7 +12,6 @@ from openai import AsyncOpenAI, OpenAI
 from tqdm.asyncio import tqdm_asyncio
 from transformers import AutoTokenizer
 
-
 # os.environ["OPENAI_API_KEY"] = "YOUR OPENAI API KEY"
 # os.environ["GROQ_API_KEY"] = "YOUR GROQ API KEY"
 # os.environ["HF_TOKEN"] = "YOUR HUGGINGFACE TOKEN"
@@ -265,7 +264,7 @@ try:
             ]
 
             guided_decoding_params = GuidedDecodingParams(grammar = grammar)
-            sampling_params = SamplingParams(guided_decoding=guided_decoding_params) # re-initialize sampling params to use guided decoding (non-optimal)
+            sampling_params = SamplingParams(guided_decoding=guided_decoding_params, **kwargs) # re-initialize sampling params to use guided decoding (non-optimal)
             sampling_params.max_tokens = self.max_tokens
 
             outputs = self.model.generate(
