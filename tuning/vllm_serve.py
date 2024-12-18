@@ -22,7 +22,7 @@ async def root():
     return {"message": "API is running"}
 
 @app.post("/generate")
-async def generate(prompts: list[str], grammar: str):
+async def generate(prompts: list[str]):
     try:
         sampling_params = {"temperature": 0.2, "top_p": 0.95}
         outputs = get_endpoint_response(prompts, sampling_params) # this is not an async function so no await needed
