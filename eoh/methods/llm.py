@@ -12,6 +12,7 @@ from openai import AsyncOpenAI, OpenAI
 from tqdm.asyncio import tqdm_asyncio
 from transformers import AutoTokenizer
 
+
 # os.environ["OPENAI_API_KEY"] = "YOUR OPENAI API KEY"
 # os.environ["GROQ_API_KEY"] = "YOUR GROQ API KEY"
 # os.environ["HF_TOKEN"] = "YOUR HUGGINGFACE TOKEN"
@@ -246,6 +247,7 @@ try:
                 max_model_len=max_model_len,
             )
 
+            
             self.params = SamplingParams(**kwargs)
             self.params.max_tokens = max_tokens
 
@@ -254,7 +256,7 @@ try:
         def completions(
             self,
             prompts: List[str],
-            grammar: Optional[str] = None, # fixed grammar for current batch
+            grammar: Optional[str] = None,
             use_tqdm: bool = True,
             **kwargs: Union[int, float, str],
         ) -> List[str]:
@@ -262,22 +264,16 @@ try:
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
 
-            # Store original params
-            original_params = self.params
+            guided_decoding_params = GuidedDecodingParams(grammar = grammar)
+            sampling_params = SamplingParams(guided_decoding=guided_decoding_params) # re-initialize sampling params to use guided decoding (non-optimal)
+            sampling_params.max_tokens = 1024 
 
-            if grammar:
-                guided_decoding_params = GuidedDecodingParams(grammar=grammar)
-                self.params = guided_decoding_params
-            
             outputs = self.model.generate(
-                formatted_prompts, self.params, use_tqdm=use_tqdm
+                prompts = formatted_prompts, 
+                sampling_params = sampling_params, 
+                use_tqdm=use_tqdm
             )
-            
-            # Reset params back to original
-            self.params = original_params
-            
             outputs = [output.outputs[0].text for output in outputs]
-            
             return outputs
 
         def generate(
@@ -289,7 +285,6 @@ try:
             formatted_prompts = [
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
-            
             return self.model.generate(
                 formatted_prompts, self.params, use_tqdm=use_tqdm
             )
@@ -325,7 +320,7 @@ def fold_vllm_response_func(name: str = "") -> Callable:
 
 def get_batch_vllm_func(name: str = "") -> Callable:
     model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name)
-    get_vllm_response = lambda query, desc="": model.completions(query)
+    get_vllm_response = lambda query, grammar=None, desc="": model.completions(query, grammar) # default to no grammar constraint
     return get_vllm_response
 
 
@@ -554,10 +549,7 @@ def get_vllm_endpoint_func(
     # some initial call to warm up the server
     print(":: Sending warmup message to initialize the server ...")
     warmup_prompt = ["This is a warmup prompt to initialize the server."]
-    temp_responses = get_endpoint_response(warmup_prompt)
-    if temp_responses != []: 
-        print(":: Server initialized sucessfully!")
-    else:
-        print(":: Server not initilized!")
+    get_endpoint_response(warmup_prompt)
+    print(":: Server initialized successfully!")
 
     return get_endpoint_response
