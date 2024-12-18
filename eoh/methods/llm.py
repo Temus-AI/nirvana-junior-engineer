@@ -263,9 +263,11 @@ try:
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
 
-            guided_decoding_params = GuidedDecodingParams(grammar = grammar)
-            sampling_params = SamplingParams(guided_decoding=guided_decoding_params, **kwargs) # re-initialize sampling params to use guided decoding (non-optimal)
-            sampling_params.max_tokens = self.max_tokens
+            if grammar is not None: 
+                guided_decoding_params = GuidedDecodingParams(grammar = grammar)
+                sampling_params = SamplingParams(guided_decoding=guided_decoding_params, **kwargs) # re-initialize sampling params to use guided decoding (non-optimal)
+            else: 
+                sampling_params = SamplingParams(**kwargs)
 
             outputs = self.model.generate(
                 prompts = formatted_prompts, 
