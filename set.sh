@@ -1,8 +1,19 @@
 # System dependencies
-apt-get update
-apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-    libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
-    libpango-1.0-0 libcairo2 libasound2 build-essential
+if [ "$(uname)" == "Darwin" ]; then
+    # macOS
+    echo "Installing dependencies for macOS..."
+    brew install libnss libnspr atk at-spi2-atk cups xkbcommon cairo pango
+elif [ "$(uname)" == "Linux" ]; then
+    # Linux
+    echo "Installing dependencies for Linux..."
+    apt-get update
+    apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+        libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+        libpango-1.0-0 libcairo2 libasound2 build-essential
+else
+    echo "Unsupported operating system"
+    exit 1
+fi
 
 # Clean existing installations
 pip uninstall -y torch torchvision torchaudio flash-attn
