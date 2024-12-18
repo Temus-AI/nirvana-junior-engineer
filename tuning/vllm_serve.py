@@ -31,7 +31,10 @@ async def generate(prompts: list[str]):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate_cfg")
-async def generate_cfg(prompts: list[str], grammar: str):
+# async def generate_cfg(prompts: list[str], grammar: str): # don't work 
+async def generate_cfg(input_dict: dict): # don't work 
+    prompts = input_dict["prompts"]
+    grammar = input_dict["grammar"]
     try: 
         outputs = get_endpoint_response(prompts, grammar)
         return {"results": outputs}
