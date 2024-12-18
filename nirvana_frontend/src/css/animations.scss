@@ -1,0 +1,162 @@
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation-name: fade-in;
+  animation-duration: $transition-normal;
+  // animation-delay: $transition-fast;
+}
+
+@keyframes fade-out-node-outline {
+  from {
+    outline-color: rgba($purple, $opacity-mid);
+    outline-offset: rem-to-px(2rem);
+  }
+
+  to {
+    outline-color: transparent;
+    outline-offset: rem-to-px(0);
+  }
+}
+
+.fade-out-node-outline {
+  animation-name: fade-out-node-outline;
+  animation-duration: $transition-slow-x;
+  animation-delay: $transition-fast;
+}
+
+@keyframes fade-in-outline {
+  from {
+    outline: 1px solid transparent;
+    padding: 0;
+  }
+
+  to {
+    outline: 1px solid $light-grey;
+    padding: $padding-mid;
+  }
+}
+
+.fade-in-outline {
+  animation-name: fade-in-outline;
+  animation-duration: $transition-normal;
+}
+
+@keyframes remove-margin {
+  from {
+    margin: 0 $padding-mid;
+  }
+
+  to {
+    margin: 0;
+  }
+}
+
+.remove-margin {
+  animation-name: remove-margin;
+  animation-duration: $transition-normal;
+}
+
+@keyframes drop-down {
+  from {
+    // opacity: 0;
+    transform: translateY(-$padding-x-large);
+  }
+
+  to {
+    // opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drop-down {
+  animation-name: drop-down;
+  animation-duration: $transition-normal-slow;
+}
+
+@keyframes drop-up-answer {
+  from {
+    transform: translateY($padding-x-large);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+.drop-up-answer {
+  animation-name: drop-up-answer;
+  animation-duration: $transition-normal;
+}
+
+@keyframes drop-up {
+  from {
+    transform: scale(0.75) translateY($padding-mid);
+  }
+
+  to {
+    transform: scale(1) translateY(0);
+  }
+}
+
+.drop-up {
+  animation-name: drop-up;
+  animation-duration: $transition-normal;
+}
+
+@keyframes half-circle-rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  40% {
+    transform: rotate(180deg);
+  }
+
+  60% {
+    transform: rotate(180deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-icon {
+  animation: half-circle-rotation 2s infinite;
+  transform-origin: center;
+}
+
+@keyframes highlighted-text-background {
+  0% {
+    background-color: $white;
+  }
+
+  100% {
+    background-color: $warn-yellow-x-light;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+
+@keyframes text-in {
+  from {
+    background-color: rgba($purple, $opacity-xxh);
+  }
+
+  to {
+    background-color: transparent;
+  }
+}
+
+.text-in {
+  animation-name: text-in;
+  animation-duration: $transition-normal-slow;
+}

@@ -1,0 +1,88 @@
+$edge-color-stroke: #aaa;
+$edge-stroke-width: 2px;
+
+.react-flow:not(:has(.react-flow__node.selected)) {
+  .react-flow__edges:has(.react-flow__edge.selected) {
+    z-index: 999999 !important;
+  }
+}
+
+.react-flow__edge {
+  position: absolute !important;
+
+  .react-flow__edge-path {
+    stroke: $edge-color-stroke;
+    stroke-width: $edge-stroke-width;
+    // stroke-linecap: round;
+    z-index: 1;
+
+    transition:
+      stroke $transition-fast,
+      stroke-width $transition-fast;
+  }
+
+  .react-flow__edge-path-background {
+    fill: none;
+    stroke: $white;
+    // opacity: $opacity-default;
+    stroke-width: 3 * $edge-stroke-width;
+    stroke-linecap: round;
+    z-index: -1;
+  }
+
+  // ! selected
+  &.selected,
+  &:focus,
+  &:focus-visible {
+    z-index: 999999 !important;
+
+    .react-flow__edge-path {
+      stroke: rgba($red, $opacity-mid) !important;
+      // stroke-width: 2;
+    }
+  }
+
+  // ! explained
+  .edge-explained {
+    stroke-linecap: round !important;
+    stroke-dasharray: 0, 4;
+    stroke: rgba($purple, $opacity-mid) !important;
+  }
+
+  // the foreignObject wrapper
+  .edge-label-wrapper {
+    width: min-content;
+    height: min-content;
+    padding: 0;
+    margin: 0;
+
+    overflow: visible;
+
+    opacity: 1;
+    transition: opacity $transition-normal;
+
+    &.hidden-edge-label-wrapper {
+      opacity: 0;
+    }
+
+    .edge-custom-type-switch {
+      display: flex;
+      flex-direction: row;
+      gap: $padding-small;
+
+      width: 100%;
+      pointer-events: all;
+
+      .type-switch-button {
+        flex-grow: 1;
+        padding: $padding-small !important;
+
+        transition: outline $transition-fast;
+
+        &.selected {
+          outline: rem-to-px(1rem) solid $elegant-blue !important;
+        }
+      }
+    }
+  }
+}

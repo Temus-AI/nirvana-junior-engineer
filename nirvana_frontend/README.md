@@ -1,73 +1,59 @@
-# TinyDAG
+# <img src="./public/logo512.png" width="48" style="vertical-align: middle;" alt="G"></img>raphologue: Exploring LLM Responses with Interactive Diagrams
 
-A lightweight package for real-time manipulation of directed acyclic graphs (DAGs).
+temus transforms Large Language Model (LLM, such as GPT-4) responses into interactive diagrams in real-time with _Inline Annotation_.
 
-Features:
-- Create and manage graph nodes
-- Update connections in real-time
-- Visualize graph structures
-- Track node properties and relationships
+![](./media/teaser.png)
 
-### Installation
+[**Live Demo**](https://temus.app/) (An OpenAI API key is needed.) | [**UIST 2023 Paper**](https://doi.org/10.1145/3586183.3606737) | [**Website**](https://creativity.ucsd.edu/)
+
+## Development
+
+1. Install all the dependencies.
+
 ```bash
-pip install -e .
+npm install
 ```
 
-### Run the server
-Following commands can be used to run the server: 
+2. Create an `.env` file at the project ROOT (where the `.env.example` file is) to put the OpenAI API key. The file should look like:
 
-- `tiny_dag_backend`: Starts the backend server
-- `tiny_dag_frontend`: Launches the frontend development server
-- `serve_tiny_dag`: Runs both frontend and backend in development mode
-
-
-### Use front-end API 
-
-```python
-from tiny_dag import get_graph_state
-
-# Get initial DAG state
-graph_state = get_graph_state()
-
-# Add nodes to the DAG
-node1 = {
-    "id": 1,
-    "x": 300,
-    "y": 300,
-    "name": "Input Node",
-    "target": "input",
-    "input": [],
-    "output": ["data"],
-    "code": "data = 42",
-    "fitness": 0.8,
-    "reasoning": "Initial data input",
-    "inputTypes": [],
-    "outputTypes": ["int"]
-}
-
-node2 = {
-    "id": 2,
-    "x": 550,  # Will be automatically positioned by add_nodes()
-    "y": 300,
-    "name": "Processing Node",
-    "target": "process",
-    "input": ["data"],
-    "output": ["result"],
-    "code": "result = data * 2",
-    "fitness": 0.7,
-    "reasoning": "Double the input value",
-    "inputTypes": ["int"],
-    "outputTypes": ["int"]
-}
-
-# Create an edge connecting the nodes
-edge = {
-    "source": 1,
-    "target": 2
-}
-
-# Add nodes and connections to the graph
-add_nodes([node1, node2], [edge])
+```
+REACT_APP_OPENAI_API_KEY=sk-...
 ```
 
-for more examples, refer to 'demo_frontend.ipynb' notebook
+3. Start the local server.
+
+```bash
+npm start
+```
+
+## UIST 2023 Paper
+
+**temus: Exploring Large Language Model Responses with Interactive Diagrams**<br />
+Peiling Jiang*, Jude Rayan*, Steven P. Dow, Haijun Xia _(\* Both authors contributed equally to this research.)_
+
+**Please cite this paper if you used the code or prompts in this repository.**
+
+> Peiling Jiang, Jude Rayan, Steven P. Dow, and Haijun Xia. 2023. temus: Exploring Large Language Model Responses with Interactive Diagrams. In The 36th Annual ACM Symposium on User Interface Software and Technology (UIST ’23), October 29-November 1, 2023, San Francisco, CA, USA. ACM, New York, NY, USA, 20 pages. https://doi.org/10.1145/3586183.3606737
+
+```bibtex
+@inproceedings{jiang2023temus,
+  author = {Jiang, Peiling and Rayan, Jude and Dow, Steven P. and Xia, Haijun},
+  title = {temus: Exploring Large Language Model Responses with Interactive Diagrams},
+  year = {2023},
+  isbn = {9798400701320},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3586183.3606737},
+  doi = {10.1145/3586183.3606737},
+  booktitle = {The 36th Annual ACM Symposium on User Interface Software and Technology},
+  keywords = {Large Language Model, Natural Language Interface, Visualization},
+  location = {San Francisco, CA, USA},
+  series = {UIST '23}
+}
+```
+
+Large language models (LLMs) have recently soared in popularity due to their ease of access and the unprecedented ability to synthesize text responses to diverse user questions. However, LLMs like ChatGPT present significant limitations in supporting complex information tasks due to the insufficient affordances of the text-based medium and linear conversational structure. Through a formative study with ten participants, we found that LLM interfaces often present long-winded responses, making it difficult for people to quickly comprehend and interact flexibly with various pieces of information, particularly during more complex tasks. We present temus, an interactive system that converts text-based responses from LLMs into graphical diagrams to facilitate information-seeking and question-answering tasks. temus employs novel prompting strategies and interface designs to extract entities and relationships from LLM responses and constructs node-link diagrams in real-time. Further, users can interact with the diagrams to flexibly adjust the graphical presentation and to submit context-specific prompts to obtain more information. Utilizing diagrams, temus enables graphical, non-linear dialogues between humans and LLMs, facilitating information exploration, organization, and comprehension.
+
+## Acknowledgements
+
+This work would not be possible without the selfless and heartwarming support of all the members of the Creativity Lab at UC San Diego. Our deepest gratitude extends to Fuling Sun, who was crucial in facilitating a productive drive toward the successful completion of this project. We would also like to thank Sangho Suh, Bryan Min, Matthew Beaudouin-Lafon, and Jane E for helping with the video figure production, and William Duan, Vidya Madhavan, Tony Meng, Xiaoshuo Yao, and Juliet (Lingye) Zhuang for assistance with the technical evaluation, as well as Brian Hempel and Devamardeep Hayatpur for proofreading the paper draft. We thank anonymous reviewers for their constructive and insightful reviews. NSF grant #2009003 provided financial support.

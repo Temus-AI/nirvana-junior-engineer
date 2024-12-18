@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: tiny_dag
-Version: 0.2
-Requires-Dist: fastapi
-Requires-Dist: uvicorn
-Requires-Dist: websockets
-Requires-Dist: honcho

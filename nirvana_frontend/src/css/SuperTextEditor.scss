@@ -1,0 +1,212 @@
+.super-wrapper {
+  position: relative;
+  margin: 0;
+  padding: 0;
+
+  outline: none;
+  border: none;
+
+  overflow: visible;
+  z-index: 1;
+
+  &.super-wrapper-static-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: auto;
+
+    &.super-wrapper-static-text-node {
+      min-width: 160px; // 10rem
+
+      .node-label {
+        display: inline-flex;
+        padding: $padding-mid $padding-xx-large;
+        text-align: center;
+
+        font-size: $font-size-default;
+        font-weight: $font-weight-thin;
+      }
+    }
+  }
+
+  &.super-wrapper-static-text-edge {
+    position: relative;
+    width: fit-content;
+
+    .edge-label {
+      display: inline-flex;
+      padding: $padding-xs $padding-xs;
+      text-align: center;
+
+      font-size: $font-size-xs;
+      font-weight: $font-weight-default;
+
+      width: max-content;
+      max-width: 12rem;
+      white-space: pre;
+    }
+  }
+
+  textarea {
+    background: transparent !important;
+  }
+
+  .super-text-editor {
+    width: auto;
+    height: auto;
+    min-width: 1rem; // ?
+    font-family: inherit;
+
+    margin: 0;
+    background: none;
+    outline: none;
+    border: none;
+    appearance: none;
+
+    text-align: center;
+    white-space: pre;
+    resize: none;
+  }
+
+  .content-tooltip {
+    position: absolute;
+    bottom: calc(100% + $padding-small);
+    left: 50%;
+    transform: translateX(-50%);
+
+    @include tooltip-styles();
+    font-size: $font-size-small;
+    padding: $padding-xs $padding-small;
+    max-width: 10rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    transition: opacity $transition-normal;
+
+    z-index: 999;
+  }
+}
+
+.width-measuring-span {
+  display: inline-flex;
+  padding: $padding-mid $padding-xx-large;
+
+  font-family: inherit;
+  font-size: $font-size-default;
+  font-weight: $font-weight-thin;
+}
+
+.width-measuring-span-pseudo {
+  display: inline-flex;
+  padding: $padding-mid;
+
+  font-family: inherit;
+  font-size: $font-size-small;
+  font-weight: $font-weight-thin;
+}
+
+.edge-label-width-measuring-span {
+  display: inline-flex;
+  padding: $padding-xs $padding-xs;
+
+  font-family: inherit;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-default;
+}
+
+.super-wrapper-node {
+  // https://css-tricks.com/auto-growing-inputs-textareas/
+  display: inline-grid;
+  vertical-align: middle; // top?
+  align-items: stretch;
+  // justify-items: center;
+
+  &::after,
+  .super-text-editor {
+    grid-area: 1 / 1 / 1 / 1;
+
+    border-radius: 0;
+    padding: $padding-mid $padding-xx-large;
+  }
+
+  &::after {
+    content: attr(data-value) ' ';
+    visibility: hidden;
+    white-space: pre-wrap;
+  }
+}
+
+.super-wrapper-edge {
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+
+  .super-text-editor,
+  .edge-label {
+    flex: 1;
+    padding: $padding-xs $padding-xs;
+    border-radius: $padding-x-large;
+
+    font-size: $font-size-xs;
+    font-weight: $font-weight-default;
+    color: $grey;
+
+    background: rgba($white, 0);
+    outline: rem-to-px(1rem) solid transparent;
+    outline-offset: 0;
+
+    transition:
+      outline $transition-fast,
+      background-color $transition-fast;
+
+    &::selection {
+      background: $light;
+    }
+
+    // when not empty
+    &:not(.empty-text-editor) {
+      // background: rgba($white, $opacity-mid);
+      // backdrop-filter: blur($blur-small);
+      background: $white;
+    }
+
+    // when hovered
+    &:hover {
+      background: $white;
+      outline: rem-to-px(1rem) solid $light-grey;
+
+      & + .content-tooltip {
+        opacity: 1;
+        visibility: visible;
+      }
+    }
+
+    // when selected
+    &:active,
+    &.selected-text-editor {
+      background: $white;
+      outline: rem-to-px(1rem) solid rgba($red, $opacity-mid);
+    }
+  }
+
+  .super-text-editor {
+    // when editing
+    &:not(.disabled-text-editor) {
+      color: $red;
+      // outline: rem-to-px(1rem) solid rgba($pink, $opacity-mid);
+    }
+  }
+
+  // &:hover,
+  // &:not(.disabled-wrapper) {
+  //   .content-tooltip {
+  //     opacity: 1;
+  //     visibility: visible;
+  //   }
+  // }
+}

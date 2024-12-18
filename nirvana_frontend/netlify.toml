@@ -1,0 +1,18 @@
+[build]
+environment = { NODE_VERSION = "16" }
+publish = "build/"
+command = "npm run build"
+
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
+
+[dev]
+port = 9999
+
+[functions]
+node_bundler = "esbuild"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200

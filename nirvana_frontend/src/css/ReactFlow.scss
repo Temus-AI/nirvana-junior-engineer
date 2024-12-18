@@ -1,0 +1,203 @@
+$node-selection-border-width: rem-to-px(2rem);
+
+.react-flow {
+  user-select: none;
+
+  .react-flow__minimap {
+    margin: $padding-mid;
+    opacity: $opacity-default;
+  }
+
+  .react-flow__controls {
+    display: flex;
+    flex-direction: row;
+    white-space: nowrap;
+    align-items: center;
+    width: max-content;
+    // gap: $padding-xxs;
+    // overflow: hidden;
+
+    padding: $padding-xs;
+    margin: $padding-mid;
+    border-radius: $radius-default;
+    background: rgba($white, $opacity-default);
+    backdrop-filter: blur($blur-default);
+
+    box-shadow: $shadow-default;
+
+    .react-flow__controls-button {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      // align-self: stretch;
+      justify-content: center;
+      gap: $padding-xs;
+
+      line-height: 100%;
+      height: 100%;
+      width: fit-content;
+      padding: $padding-small;
+      border: none !important;
+      border-radius: $radius-small;
+      background: transparent;
+
+      // &.icon-only-button {
+      //   &::before {
+      //     content: '|';
+      //     opacity: 0;
+      //     display: inline-block;
+      //   }
+
+      //   &::after {
+      //     content: '|';
+      //     opacity: 0;
+      //     display: inline-block;
+      //   }
+      // }
+
+      &:hover {
+        background: $light;
+      }
+
+      &.button-highlighted {
+        background: $light-grey;
+      }
+
+      * {
+        line-height: 100%;
+        font-size: $font-size-small;
+      }
+
+      svg {
+        width: $font-size-default;
+        height: $font-size-default;
+      }
+
+      &.disabled-control-button {
+        pointer-events: none;
+
+        path {
+          opacity: $opacity-high;
+        }
+
+        span {
+          opacity: $opacity-xh;
+        }
+      }
+
+      &.tips-button {
+        cursor: help;
+      }
+
+      &:not(.tips-button) {
+        :not(.control-button-tooltip) {
+          path {
+            color: $dark-grey;
+          }
+        }
+      }
+
+      .control-button-tips-icon {
+        width: $font-size-default;
+        height: $font-size-default;
+        transform: scale(1.1);
+        transform-origin: center;
+        fill: $light-grey;
+        transition: fill $transition-normal;
+      }
+
+      .control-button-tips {
+        color: $grey;
+        font-weight: $font-weight-bold;
+      }
+
+      #title {
+        z-index: 1;
+        // font-family: 'Quicksand', sans-serif;
+        font-weight: 600;
+        user-select: none;
+        font-size: $font-size-default;
+        color: $elegant-blue;
+      }
+
+      .control-button-tooltip {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        gap: $padding-small;
+
+        position: absolute;
+        top: 120%;
+        padding: $padding-small !important;
+
+        @include tooltip-styles();
+
+        transition: opacity $transition-normal;
+        opacity: 0;
+        visibility: none;
+        z-index: -1;
+
+        .tooltip-line {
+          display: flex;
+          flex-direction: row;
+          gap: $padding-xs;
+          align-items: center;
+
+          path {
+            fill: $white;
+          }
+        }
+      }
+
+      .loading-icon {
+        fill: $purple;
+      }
+
+      .control-button-processing {
+        color: $purple !important;
+        font-weight: $font-weight-bold;
+      }
+
+      &:hover {
+        .control-button-tooltip {
+          opacity: 1;
+          visibility: visible;
+        }
+
+        .control-button-tips-icon:not(.loading-icon) {
+          fill: $elegant-yellow;
+        }
+
+        .control-button-explain-icon {
+          fill: $elegant-blue;
+        }
+
+        .control-button-tips {
+          color: $grey;
+        }
+      }
+    }
+  }
+
+  .react-flow__nodesselection-rect {
+    // box-sizing: border-box;
+    // border-radius: calc(
+    //   $radius-default + rem-to-px(4rem) + $node-selection-border-width
+    // );
+
+    padding: rem-to-px(4rem);
+    transform: translate(
+      rem-to-px(-4rem) - $node-selection-border-width,
+      rem-to-px(-4rem) - $node-selection-border-width
+    );
+  }
+
+  .react-flow__nodesselection-rect,
+  .react-flow__selection {
+    border-width: $node-selection-border-width;
+    border-style: solid;
+    border-color: rgba($blue, $opacity-xh);
+    background: rgba($blue, $opacity-xxx-h);
+  }
+}
