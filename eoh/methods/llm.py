@@ -249,7 +249,7 @@ try:
 
             
             self.params = SamplingParams(**kwargs)
-            self.params.max_tokens = max_tokens
+            self.params.max_tokens = self.max_tokens
 
             self.tokenizer = AutoTokenizer.from_pretrained(self.name)
 
@@ -266,7 +266,7 @@ try:
 
             guided_decoding_params = GuidedDecodingParams(grammar = grammar)
             sampling_params = SamplingParams(guided_decoding=guided_decoding_params) # re-initialize sampling params to use guided decoding (non-optimal)
-            sampling_params.max_tokens = 1024 
+            sampling_params.max_tokens = self.max_tokens
 
             outputs = self.model.generate(
                 prompts = formatted_prompts, 
@@ -318,8 +318,8 @@ def fold_vllm_response_func(name: str = "") -> Callable:
     return get_vllm_response
 
 
-def get_batch_vllm_func(name: str = "") -> Callable:
-    model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name)
+def get_batch_vllm_func(name: str = "", max_tokens: int = 2048) -> Callable:
+    model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name, max_tokens=max_tokens)
     get_vllm_response = lambda query, grammar=None, desc="": model.completions(query, grammar) # default to no grammar constraint
     return get_vllm_response
 
