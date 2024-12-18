@@ -30,6 +30,14 @@ async def generate(prompts: list[str]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/generate_cfg")
+async def generate_cfg(prompts: list[str], grammar: str):
+    try: 
+        outputs = get_endpoint_response(prompts, grammar)
+        return {"results": outputs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 def run_server():
     global get_endpoint_response
     # model_name = "unsloth/Llama-3.2-1B-Instruct"
