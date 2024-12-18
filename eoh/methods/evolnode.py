@@ -596,7 +596,8 @@ class EvolNode:
         prompt_content = self._get_evolve_prompt(method, parents, feedback)
         prompts = [prompt_content] * batch_size
         desc_str = f"Running evolution strategy {method} in parallel with batch size {batch_size}"  # Added description string for progress bar
-        responses = self.get_response(prompts, desc=desc_str)
+        responses = self.get_response(prompts, desc=desc_str) # cfg enhancement
+        # self.get_cfg_response(prompts, grammar_str, desc=desc_str) # desired line
         return responses
 
     def _evolve(
