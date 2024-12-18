@@ -24,8 +24,7 @@ async def root():
 @app.post("/generate")
 async def generate(prompts: list[str]):
     try:
-        sampling_params = {"temperature": 0.2, "top_p": 0.95}
-        outputs = get_endpoint_response(prompts, sampling_params) # this is not an async function so no await needed
+        outputs = get_endpoint_response(prompts) # this is not an async function so no await needed
         return {"results": outputs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
