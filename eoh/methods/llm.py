@@ -246,15 +246,16 @@ try:
                 max_model_len=max_model_len,
             )
 
+            self.max_tokens = max_tokens
             self.params = SamplingParams(**kwargs)
-            self.params.max_tokens = max_tokens
+            self.params.max_tokens = self.max_tokens
 
             self.tokenizer = AutoTokenizer.from_pretrained(self.name)
 
         def completions(
             self,
             prompts: List[str],
-            grammar: Optional[str] = None, # fixed grammar for current batch
+            grammar: Optional[str] = None,
             use_tqdm: bool = True,
             **kwargs: Union[int, float, str],
         ) -> List[str]:
@@ -262,22 +263,18 @@ try:
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
 
-            # Store original params
-            original_params = self.params
+            if grammar is not None: 
+                guided_decoding_params = GuidedDecodingParams(grammar = grammar)
+                sampling_params = SamplingParams(guided_decoding=guided_decoding_params, **kwargs) # re-initialize sampling params to use guided decoding (non-optimal)
+            else: 
+                sampling_params = SamplingParams(**kwargs)
 
-            if grammar:
-                guided_decoding_params = GuidedDecodingParams(grammar=grammar)
-                self.params = guided_decoding_params
-            
             outputs = self.model.generate(
-                formatted_prompts, self.params, use_tqdm=use_tqdm
+                prompts = formatted_prompts, 
+                sampling_params = sampling_params, 
+                use_tqdm=use_tqdm
             )
-            
-            # Reset params back to original
-            self.params = original_params
-            
             outputs = [output.outputs[0].text for output in outputs]
-            
             return outputs
 
         def generate(
@@ -289,7 +286,6 @@ try:
             formatted_prompts = [
                 self.format_query_prompt(prompt.strip()) for prompt in prompts
             ]
-            
             return self.model.generate(
                 formatted_prompts, self.params, use_tqdm=use_tqdm
             )
@@ -323,9 +319,9 @@ def fold_vllm_response_func(name: str = "") -> Callable:
     return get_vllm_response
 
 
-def get_batch_vllm_func(name: str = "") -> Callable:
-    model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name)
-    get_vllm_response = lambda query, desc="": model.completions(query)
+def get_batch_vllm_func(name: str = "", max_tokens: int = 2048) -> Callable:
+    model = VLLM(name="meta-llama/Llama-3.1-8B-Instruct" if not name else name, max_tokens=max_tokens)
+    get_vllm_response = lambda query, grammar=None, desc="": model.completions(query, grammar) # default to no grammar constraint
     return get_vllm_response
 
 

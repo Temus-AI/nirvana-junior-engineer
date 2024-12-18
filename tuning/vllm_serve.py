@@ -24,9 +24,18 @@ async def root():
 @app.post("/generate")
 async def generate(prompts: list[str]):
     try:
-        sampling_params = {"temperature": 0.8, "top_p": 0.95}
-        outputs = get_endpoint_response(prompts, sampling_params) # this is not an async function so no await needed
-        # return {"results": [output["text"] for output in outputs]}
+        outputs = get_endpoint_response(prompts) # this is not an async function so no await needed
+        return {"results": outputs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate_cfg")
+# async def generate_cfg(prompts: list[str], grammar: str): # don't work 
+async def generate_cfg(input_dict: dict): # don't work 
+    prompts = input_dict["prompts"]
+    grammar = input_dict["grammar"]
+    try: 
+        outputs = get_endpoint_response(prompts, grammar)
         return {"results": outputs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
