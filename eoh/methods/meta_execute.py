@@ -515,30 +515,6 @@ def call_func_prompt_parallel(
         codes, input_dicts, max_tries
     )
 
-    # total_iterations = len(input_dicts) * len(codes)
-    # with tqdm(total=total_iterations, desc="Executing Node to generate prompts ...") as pbar:
-    #     for (input_index, input_dict) in enumerate(input_dicts):
-    #         for (code_index, code) in enumerate(codes):
-    #             mod = types.ModuleType('dynamic_module')
-    #             try:
-    #                 with Timeout_(3):  # 3-second timeout
-    #                     exec(code, mod.__dict__)
-    #                     func_name = "generate_prompt"
-    #                     assert func_name in mod.__dict__, f"Function {func_name} not found in code #{code_index}"
-    #                     prompt_func = mod.__dict__[func_name]
-    #                     prompt = prompt_func(**input_dict)
-
-    #                     for _ in range(max_tries): # number of trials
-    #                         prompts.append(prompt)
-    #                         input_indices.append((input_index, code_index))
-
-    #                 errors_per_code_per_test[code_index][input_index] = [] # empty error when one trial works
-
-    #             except Exception as e:
-    #                 errors_per_code_per_test[code_index][input_index].append(str(e))
-
-    #             pbar.update(1)
-
     desc_str = (
         f"Executing prompt node with LLM in parallel with batch size {len(prompts)}"
     )
