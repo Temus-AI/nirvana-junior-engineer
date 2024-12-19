@@ -332,7 +332,6 @@ def check_alignment_sequential(
     - we have two dictionary, need to make sure they are aligned
     - 1. they have same keys
     - 2. their values are 'basically the same'
-
     Fix: For integer output, use exact match metric instead for alignment check
     """
     error_msg = ""
@@ -484,15 +483,6 @@ class EvolNode:
         else:
             return responses
 
-    def switch_engine(self, get_engine_response: Callable):
-        """
-        Switch the LLM engine used for generating responses.
-
-        Args:
-            get_engine_response (Callable): New response generation function to use
-        """
-        self._get_response = get_engine_response
-
     def _get_extend_test_cases_response(self, num_cases: int = 1, feedback: str = ""):
         if feedback != "":
             eval_prompt = self.meta_prompt._get_eval_prompt_with_feedback(
@@ -596,8 +586,7 @@ class EvolNode:
         prompt_content = self._get_evolve_prompt(method, parents, feedback)
         prompts = [prompt_content] * batch_size
         desc_str = f"Running evolution strategy {method} in parallel with batch size {batch_size}"  # Added description string for progress bar
-        responses = self.get_response(prompts, desc=desc_str) # cfg enhancement
-        # self.get_cfg_response(prompts, grammar_str, desc=desc_str) # desired line
+        responses = self.get_response(prompts, desc=desc_str)
         return responses
 
     def _evolve(
@@ -622,6 +611,7 @@ class EvolNode:
         return reasonings, codes
 
     async def get_search_text(self, batch_size: int, search_mode: int) -> str:
+        from .meta_api import _search_google
         from .meta_library import _search_google
 
         prompt_content = (
