@@ -8,45 +8,24 @@ To serve a vLLM endpoint, use following command on RunPod instance
 ```bash
 cd tuning && python vllm_serve.py
 ```
-Make sure to expose your target port, record the 'pod_id' and 'model_name' to initialize our 'get_vllm_response_func' through 
+
+Make sure to expose your target port (e.g. 30000), record the 'pod_id' and 'model_name' to initialize our 'get_vllm_response_func' through 
+
 ```python
 from methods.llm import get_vllm_endpoint_func
 
-model_name = "unsloth/Llama-3.2-1B-Instruct"
+model_name = "unsloth/Llama-3.1-8B-Instruct"
 INTERNAL_PORT = ....
 POD_ID = "..."
 get_endpoint_response = get_vllm_endpoint_func(model_name, POD_ID, INTERNAL_PORT)
-``` 
+```
+
 ## Project Setup
 
-The easiest way to set up the development environment is to use the provided Makefile:
+To set up environment, use 
 
 ```
-make install
-```
-
-This will automatically create a virtual environment and install the project dependencies.
-
-Alternatively, you can set up the environment manually:
-
-## Virtual Environment Setup
-
-To set up the development environment, first create a virtual environment:
-
-```
-python -m venv .venv
-```
-
-Then activate the virtual environment:
-
-- On macOS/Linux: `source .venv/bin/activate`
-
-## Project Installation
-
-With the virtual environment activated, install the project dependencies:
-
-```
-pip install -e .
+bash set.sh
 ```
 
 ## Environment Variables
