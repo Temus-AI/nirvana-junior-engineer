@@ -269,6 +269,8 @@ try:
             else: 
                 sampling_params = SamplingParams(**kwargs)
 
+            sampling_params.max_tokens = self.max_tokens
+
             outputs = self.model.generate(
                 prompts = formatted_prompts, 
                 sampling_params = sampling_params, 
